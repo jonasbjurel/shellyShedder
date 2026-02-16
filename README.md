@@ -35,7 +35,7 @@ but the expected switch behaviour can be observed as log entries in the console;
 log level needs to be set to "LOG_INFO" to observe the operations in simulation mode.
 
 To observe the operations various logging-levels is defined by "LOG_LEVEL", available log 
-levels are: "LOG_VERBOSE, LOG_INFO", "LOG_WARN", "LOG_ERROR", LOG_CRITICAL.
+levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL".
 
 ## Settings 
 This script's behaviour depends on script settings with default settings as defined in this
