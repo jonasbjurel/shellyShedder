@@ -1,4 +1,4 @@
-/**************************************************************************************
+/*********************************************************************************************************
  * @title: General shelly load shedding script
  * @(C): Jonas Bjurel et Al.
  * @License: Apache 2 
@@ -33,12 +33,12 @@
  * To observe the operations various logging-levels is defined by "LOG_LEVEL", available log 
  * levels are: "LOG_INFO", "LOG_WARN", "LOG_ERROR".
  *
- **************************************************************************************/
+ *********************************************************************************************************/
 
 
 
 
-/*************************************  settings  *************************************
+/************************************************  settings  *********************************************
 * 
 * This script's behaviour depends on script settings with default settings as defined in this
 * script under "default settings...". The default settings can be changed by changing the 
@@ -129,12 +129,12 @@
 *   Resets and reboots the device to factory default (default settings as defined in the 
 *   script).
 *
-**************************************************************************************/
+ *********************************************************************************************************/
 
 
 
 
-/********************************   Key considerations:   ****************************
+/*********************************************   Key considerations:   ***^^^^^^^*************************
  *
  * 1. Make sure the value set for "fuse_rating_setting" and "fuse_char_setting" 
  *    corresponds to-/or is lesser than the group fuse setting for the shedding group.
@@ -167,19 +167,19 @@
  *    
  *    Example:
  *	let first_to_last_to_shed = [
- * 	  { addr: "192.168.1.100", gen: 2, type: "Switch", id: 100,  					// Shelly Pro 3EM
+ * 	  { addr: "192.168.1.100", gen: 2, type: "Switch", id: 100,  								// Shelly Pro 3EM
  *             shed: false, measure: true },
  * 	  { addr: "192.168.52.4", gen: 1, type: "relay", id: 0 }, shed: false, measure: true },	  	// A first generation Shelly relay
- * 	  {												// An example of a generic device webhook
+ * 	  {																							// An example of a generic device webhook
  *           shed: false
  *           measure: true
- *   	    on_url: "http://192.168.1.101/rpc/switch.Set?id=0&on=true",					// A generic channel turn-on Webhook
- *   	    off_url: "http://192.168.1.101/rpc/switch.Set?id=0&on=false",				// A generic channel turn-off Webhook
- *	    measure_current_url: "http://192.168.1.101/rpc/switch.GetCurr?id=0"				// A generic channel current measure Webhook
+ *   	    on_url: "http://192.168.1.101/rpc/switch.Set?id=0&on=true",							// A generic channel turn-on Webhook
+ *   	    off_url: "http://192.168.1.101/rpc/switch.Set?id=0&on=false",						// A generic channel turn-off Webhook
+ *	    	measure_current_url: "http://192.168.1.101/rpc/switch.GetCurr?id=0"					// A generic channel current measure Webhook
  * 	 },
- * 	 { addr: "192.168.52.3", gen: 2, type: "relay", id: 0,						// a Shelly Plus or Pro relay (first channel)
+ * 	 { addr: "192.168.52.3", gen: 2, type: "relay", id: 0,										// a Shelly Plus or Pro relay (first channel)
  *	     shed: false, measure: true },
- *       { addr: "192.168.52.2", gen: 2, type: "relay", id: 1, shed: false, measure: true },		// a Shelly Plus or Pro relay (second channel)
+ *       { addr: "192.168.52.2", gen: 2, type: "relay", id: 1, shed: false, measure: true },	// a Shelly Plus or Pro relay (second channel)
  *      ];
  *
  * 7. Current restriction ("current_restricion_setting") is a way for north-bound shedding
@@ -189,24 +189,24 @@
  *    "current_restricion_setting" it will instantly try to shed the current according
  *    to normal priority principles. To avoid oscilations a 
  *    "current_restriction_hysteresis_setting" hysteresis factor is applied before the
- *    re-loading of channels can happen if 
+ *    re-loading of channels may happen.
  *
- **************************************************************************************/
+ *********************************************************************************************************/
 
 
 
 
-/************************************  Todo:   ****************************************
+/***********************************************  Todo:   ************************************************
  * 1) Fix generic webhook shed handling
  * 2) Rebase variable names
  * 3) Priority override handling
  *
- **************************************************************************************/
+**********************************************************************************************************/
 
 
 
 
-/*************************  Program variables, do not change   ************************/
+/***********************************  Program variables, do not change   *********************************/
 let fuse_load_trip_time_table = [	
   {over_current: 1.13, trip_time: -1},
   {over_current: 1.3, trip_time: 90},
@@ -247,13 +247,13 @@ const LOG_INFO = 1;
 const LOG_WARN = 2;
 const LOG_ERROR = 3;
 const LOG_CRITICAL = 4;
-/**************************************************************************************/
+/*********************************************************************************************************/
 
 
 
 
-/*****************   Default settings, can be changed with caution    *****************/
-/*************   But can also be permanently changed with KVS webhooks   **************/
+/****************************   Default settings, can be changed with caution    *************************/
+/*************************  But can also be permanently changed with KVS webhooks   **********************/
 let hostname_setting = "";
 let fuse_rating_setting = 16;
 let fuse_char_setting = "C";
@@ -341,8 +341,8 @@ function shellyCallQueueEmpty() {
 function shellyEventCb(event) {
   switch (event.info.event) {
 
-    case "continueExecQueuedShellyCalls"								// A Shelly call task is completed, continue
-      execQueuedShellyCalls();										// with next.
+    case "continueExecQueuedShellyCalls"													// A Shelly call task is completed, continue
+      execQueuedShellyCalls();																// with next.
       break;
 
     default:
@@ -371,18 +371,18 @@ function reboot() {
 function getTripTime(current) {
   let found = false;
   for (let i = 0; i < fuse_short_trip_current_table.length; i++) {
-    if (fuse_short_trip_current_table[i].fuse_char == fuse_char_setting) {				// Performs a check against the fuse short
-      found = true;											// characteristics provided by
-      if (fuse_short_trip_current_table[i].over_current < current/fuse_rating_setting) {		// by "fuse_load_trip_time_table" in
-        log(LOG_WARN,"Short detected for switch " + i);							// accordance with IEC ???
+    if (fuse_short_trip_current_table[i].fuse_char == fuse_char_setting) {					// Performs a check against the fuse short
+      found = true;																			// characteristics provided by
+      if (fuse_short_trip_current_table[i].over_current < current/fuse_rating_setting) {	// by "fuse_load_trip_time_table" in
+        log(LOG_WARN,"Short detected for switch " + i);										// accordance with IEC 60269
         return 0;
       }
     }
   }
   if (!found) return -1;
-  for (let i=0; i<fuse_load_trip_time_table.length; i++) {						// Performs a linear interpolation in-between 
-    if (current / fuse_rating_setting < fuse_load_trip_time_table[i].over_current) {			// The data points provided in
-      if (fuse_load_trip_time_table[i].trip_time == -1) return -1					// "fuse_load_trip_time_table"
+  for (let i=0; i<fuse_load_trip_time_table.length; i++) {									// Performs a linear interpolation in-between 
+    if (current / fuse_rating_setting < fuse_load_trip_time_table[i].over_current) {		// The data points provided in
+      if (fuse_load_trip_time_table[i].trip_time == -1) return -1							// "fuse_load_trip_time_table"
       if (fuse_load_trip_time_table[i-1].trip_time == -1) 
         return fuse_load_trip_time_table[i].trip_time;
       let K = (fuse_load_trip_time_table[i].over_current - current/fuse_rating_setting)/
@@ -409,9 +409,9 @@ function must_shedd(current) {
     return true;
   }
   current_trip_time = getTripTime(current);
-  if (current_trip_time == -1) { 									// TODO We should probably let the fuse cool
-    min_triptime_time = -1;										// down if previously overloaded but not
-    over_load_time = -1;										// shedded
+  if (current_trip_time == -1) { 															// TODO We should probably let the fuse cool
+    min_triptime_time = -1;																	// down if previously overloaded but not
+    over_load_time = -1;																	// shedded
     return false;
   }  
   if (over_load_time == -1) {
@@ -471,9 +471,9 @@ function can_load(current) {
 /* function get_current();
  * Provides the aggregated current through the group fuse to be protected, I.e. the sum of the 
  * current through all channels. If in simulation mode, the current is the aggregate of the
- * "simulated_current[]" array ellements. */
-function get_current() {											// TODO, must be changed to async
-  let previous_current_ten_percent_deviation = 0;								// in order to fetch from NW API
+ * "simulated_current[]" array elements. */
+function get_current() {																	// TODO, must be changed to async
+  let previous_current_ten_percent_deviation = 0;											// in order to fetch from NW API
   let total_current = 0;
   if (simulation) {
     for (let i = 0; i < first_to_last_to_shed.length; i++) {
@@ -834,6 +834,8 @@ function scanPower() {
 /*                                              main/init                                                */
 /*********************************************************************************************************/
 updateKvs();
+for (let i = 0; i < first_to_last_to_shed.length; i++) turn(i, switch_state[i] ? "on" : "off");
 Shelly.addEventHandler(shellyEventCb); 
 Timer.set(scan_interval * 1000, true, scanPower);
+
 /*********************************************************************************************************/
