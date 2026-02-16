@@ -145,7 +145,7 @@ fuse rating causing the normal loading mechanism to never reconnect the channel.
 **Suggested setting is between 900- and 1800 seconds.**
 5. "scan_interval" defines the interval inbetween subsequent measurements/actions.<br>
 **Recommended value is between 0.05 and 0.3 seconds.**
-6. You may have as few as one channel, and there is no upper technical limit on number of channels.
+6. You may have as few as one channel, and there is no technical upper limit on number of channels.
 The channels (switches) may be located on the device that this script runs on 
 (localhost - autonomous operation), or may be distributed to several devices communicating over
 a layer-3 IP network. Please note that the higher numbered entries (4 and 5 here) would be
