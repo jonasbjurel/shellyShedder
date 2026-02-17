@@ -525,8 +525,8 @@ function turn(idx, dir) {
   if(simulation) {
     if (dir == "off") simulated_current[idx] = 0;
     else if (dir == "on") simulated_current[idx] = last_known_current[idx];
+	return;
   }
-  return;
   if (def(o.gen)) {
     let cmd;
     if (o.gen == 1) cmd = o.type + "/" + o.id.toString() + "?turn=" + dir;
