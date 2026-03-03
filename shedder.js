@@ -205,6 +205,46 @@
 
 
 
+/********************************************    Constants ***********************************************/
+const LOG_VERBOSE = 0;
+const LOG_INFO = 1;
+const LOG_WARN = 2;
+const LOG_ERROR = 3;
+const LOG_CRITICAL = 4;
+const CALL_LIMIT = 5;
+/*********************************************************************************************************/
+
+
+
+
+/****************************   Default settings, can be changed with caution    *************************/
+/*************************  But can also be permanently changed with KVS webhooks   **********************/
+let hostname_setting = "";
+let fuse_rating_setting = 16;
+let fuse_char_setting = "C";
+let margin_factor_setting = 4;
+let cool_down_time_setting = 10;
+let first_to_last_to_shed = [
+  { addr: "localhost", gen: 2, type: "relay", id: 3, shed: true, measure: true },
+  { addr: "localhost", gen: 2, type: "relay", id: 2, shed: true, measure: true },
+  { addr: "localhost", gen: 2, type: "relay", id: 1, shed: true, measure: true },
+  { addr: "localhost", gen: 2, type: "relay", id: 0, shed: false, measure: true },
+];
+let time_to_test_loading_setting = 60;
+let scan_interval = 0.2;
+let simulation = true;
+let simulated_current = new Array(first_to_last_to_shed.length);
+for (let i = 0; i < first_to_last_to_shed.length; i++) simulated_current[i] = 0;
+let current_restriction_setting = 0;
+let current_restriction_hysteresis_setting = 0.1;
+let overload_webhook_uri_setting = "";
+let log_level_setting = LOG_INFO;
+let cicd_verification_setting = false;
+let cicd_verification_webhook =""
+/*********************************************************************************************************/
+
+
+
 
 /***********************************  Program variables, do not change   *********************************/
 let fuse_load_trip_time_table = [	
@@ -225,55 +265,25 @@ let fuse_short_trip_current_table = [
 ];
 let switch_state = new Array(first_to_last_to_shed.length);
 for (let i = 0; i < first_to_last_to_shed.length; i++) switch_state[i] = true;
-let current_vector = new Array(first_to_last_to_shed.length);
-for (let i = 0; i < first_to_last_to_shed.length; i++) current_vector[i] = 0;
 let idx_next_to_toggle_off = 0
 let direction = "coasting";
-let last_known_current= new Array(first_to_last_to_shed.length);
+let last_known_current = new Array(first_to_last_to_shed.length);
 for (let i = 0; i < first_to_last_to_shed.length; i++) last_known_current[i] = 0;
 let min_trip_time = -1;
 let over_load_time = -1;
 let cool_down_time = -1;
-let last_known_simulated_current = new Array(first_to_last_to_shed.length);
-for (let i = 0; i < first_to_last_to_shed.length; i++) last_known_simulated_current[i] = 0;
 let time_to_test_loading = 0;
 let cool_logging = false;
 let shelly_call_records = [];
+let running = false;
 let overrun_cnt = 0;
 let last_overrun = false;
 let coasting_report_cnt = 0;
-const LOG_VERBOSE = 0;
-const LOG_INFO = 1;
-const LOG_WARN = 2;
-const LOG_ERROR = 3;
-const LOG_CRITICAL = 4;
-/*********************************************************************************************************/
-
-
-
-
-/****************************   Default settings, can be changed with caution    *************************/
-/*************************  But can also be permanently changed with KVS webhooks   **********************/
-let hostname_setting = "";
-let fuse_rating_setting = 16;
-let fuse_char_setting = "C";
-let margin_factor_setting = 4;
-let cool_down_time_setting = 10;
-let first_to_last_to_shed = [
-  { addr: "localhost", gen: 2, type: "relay", id: 3, shed: true, measure: true },
-  { addr: "localhost", gen: 2, type: "relay", id: 2, shed: true, measure: true },
-  { addr: "localhost", gen: 2, type: "relay", id: 1, shed: true, measure: true },
-  { addr: "localhost", gen: 2, type: "relay", id: 0, shed: false, measure: true },
-];
-let time_to_test_loading_setting = 60;
-let scan_interval = 1;
-let simulation = false;
-let simulated_current = new Array(first_to_last_to_shed.length);
-for (let i = 0; i < first_to_last_to_shed.length; i++) simulated_current[i] = 0;
-let current_restriction_setting = 0;
-let current_restriction_hysteresis_setting = 0.1;
-let overload_webhook_uri_setting = ""
-let log_level_setting = LOG_INFO;
+let total = 0;
+let current_scan_time = 0;
+let calls = 0;
+let last_kvs_rev = -1; 
+let current_vector = new Array(first_to_last_to_shed.length);
 /*********************************************************************************************************/
 
 
@@ -289,7 +299,147 @@ function def(o) {
   return typeof o !== "undefined";
 }
 
+function parseQuery(queryString) {
+  let params = {};
+  if (!queryString) return params;
+  
+  // Dela upp strängen vid varje ampersand (&)
+  let pairs = queryString.split("&");
+  for (let i = 0; i < pairs.length; i++) {
+    let pair = pairs[i].split("=");
+    if (pair.length === 2) {
+      // Spara som nyckel-värde (t.ex. { "power": "on" })
+      params[pair[0]] = pair[1];
+    }
+    else if (pair.length === 1)
+      params[pair[0]] = undefined;
+  }
+  return params;
+}
 
+function shedderEndPoint(req, res) {
+  //print(JSON.stringify(req.query));
+  //print(req.query);
+  //print(parseQuery(req.query).key);
+  //print(typeof(parseQuery(req.query).key));
+  //print(parseQuery(JSON.parse(req.query).key));
+  //print(JSON.parse(req.query).method);
+  let key_values = parseQuery(req.query);
+  print(key_values);
+  print(Object.keys(key_values));
+  print(Object.keys(key_values)[0]);
+
+  switch(Object.keys(key_values)[0]){
+    case "simulation":
+      if(key_values.simulation === "true") {
+        simulation = true;
+        log(LOG_INFO, "Simulation started");
+        res.code = 200;
+      }
+      else if(key_values.simulation === "false") {
+        simulation = false;
+        log(LOG_INFO, "Simulation stoped");
+        res.code = 200;
+      }
+      else {
+        log(LOG_WARN: "Received a HTTP query for simulation with a wrong value: " +
+               key_values[0].simulation);
+        res.body = "Received a HTTP query for simulation with a wrong value: " +
+                   key_values[0].simulation;
+        res.code = 405;
+      }
+      res.send();
+      break;
+      
+    case "setSimulatedCurrent":
+      let ordered_simulation_current_str = key_values.setSimulatedCurrent.split(",");
+      ordered_simulation_current_str[0] = ordered_simulation_current_str[0].split("[")[1];
+      ordered_simulation_current_str[ordered_simulation_current_str.length-1] =
+        ordered_simulation_current_str[ordered_simulation_current_str.length-1].split("]")[0];
+      if(ordered_simulation_current_str.length != simulated_current.length) {
+        log(LOG_WARN, "Received a HTTP query for setting simulation current with a size that doesnt " +
+                   "match the number of current sensors");
+        res.body = "Received a HTTP query for setting simulation current with a size that doesnt " +
+                   "match the number of current sensors";
+        res.code = 400;
+        break;
+      }
+      let ordered_simulation_current = new Array(ordered_simulation_current_str.length);
+      try {
+        ordered_simulation_current = ordered_simulation_current_str.map(Number);
+        //print(ordered_simulation_current_str);
+        //print(ordered_simulation_current);
+      }
+      catch (error) {
+        log(LOG_WARN, "error");
+        res.body = error;
+        res.code = 400;
+        break;
+      }
+      if(ordered_simulation_current.some(isNaN)) {
+        log(LOG_WARN, "Received a HTTP query for setting simulation current which did not consist " +
+                   "of all numbers");
+        res.body = "Received a HTTP query for setting simulation current which did not consist " +
+                   "of all numbers";
+        res.code = 400;
+        break;
+      }
+      log(LOG_INFO, "Simulation current changed: " + simulated_current + "=>" +
+                    ordered_simulation_current);
+      res.body = "Simulation current changed: " + simulated_current + "=>" +
+                 ordered_simulation_current;
+      res.code = 200;
+      simulated_current = ordered_simulation_current;
+      break;
+    case "getCurrent":
+      res.body = JSON.stringify({total: total, channels:current_vector});
+      res.code = 200;
+      break;
+      
+    case "getLoadStatus":
+      res.body = JSON.stringify({loadDirection:direction ,
+                                  overLoadTime:over_load_time, coolDownTime:cool_down_time,
+                                  lastKnownCurrent:last_known_current,
+                                  currentRestriction:current_restriction_setting});
+      res.code = 200;
+      break;
+      
+    case "getTripTime":
+      let trip_current = Number(key_values.getTripTime);
+      if (def(trip_current)){
+        res.body = JSON.stringify({current:trip_current, tripTime:getTripTime(trip_current),
+                                  shedMarginFactor:margin_factor_setting});
+        res.code = 200;
+      }
+      else
+        res.code = 400       
+      break;
+      
+    case "getSwitchStatus":
+      let switchStatus = new Array(first_to_last_to_shed.length);
+      let prio = 0;
+      for (let i = 0; i < first_to_last_to_shed.length; i++)
+        if(first_to_last_to_shed[i].shed) prio++;
+      for (let i = 0; i < switchStatus.length; i++){
+        switchStatus[i] = first_to_last_to_shed[i];
+        switchStatus[i].switch_state = switch_state[i] == true ? "on" : "off";
+        if(first_to_last_to_shed[i].shed) {
+          switchStatus[i].priority = prio-1;
+          prio--;
+        }
+        else {
+          switchStatus[i].prio = -1;
+        }
+      }
+      res.body = JSON.stringify({switchStatus: switchStatus});
+      res.code = 200;
+      break;
+    default:
+      break;
+  }
+  res.send();
+  
+}
 /* function log(severity, log_entry);
  * Log entries to console according to "log_level_setting" which can be any of
  *  LOG_VERBOSE, LOG_INFO, LOG_WARN, LOG_ERROR and LOG_CRITICAL */
@@ -313,16 +463,30 @@ function queueShellyCall(method, method_param, cb_fun, cb_fun_params) {
  * Executes queued shelly calls, when a call has finished it's synchronous execution,
  * the next in the queue's execution gets triggered by the "continueExecQueuedShellyCalls"
  * event */
-function execQueuedShellyCalls() {
-  if (shelly_call_records.length > 0) {
-    Shelly.call(shelly_call_records[0].meth, meth_param,
-                function(result, error_code, error_message) {
-		              shelly_call_records[0].cb(result, error_code, error_message,
-                  shelly_call_records[0].cb_params);
-		              shelly_call_records.shift();
-		              Shelly.emitEvent("continueExecQueuedShellyCalls", {}); 
-                }
+function execQueuedShellyCalls(event) {
+  if (shelly_call_records.length && calls < CALL_LIMIT) {
+    calls ++;
+    Shelly.call(shelly_call_records[0].meth, shelly_call_records[0].meth_param,
+                function(result, error_code, error_message, call_record) {
+		              call_record.cb(result, error_code, error_message,
+                        call_record.cb_params);
+                      calls--;
+                      //print(call_record.meth);
+                      //print(call_record.meth_param);
+		              //shelly_call_records.splice(0, 1);
+		              if (shelly_call_records.length && calls == CALL_LIMIT-2){
+		                Shelly.emitEvent("continueExecQueuedShellyCalls", {});
+		                log(LOG_INFO, "Resuming calls");
+		              }
+                }, shelly_call_records[0]
     );
+    shelly_call_records.splice(0, 1);
+    if (shelly_call_records.length)
+      Shelly.emitEvent("continueExecQueuedShellyCalls", {}); 
+  }
+  else {
+    log(LOG_INFO, "Max calls reached, pausing calls");
+  }
 }
 
 
@@ -335,16 +499,39 @@ function shellyCallQueueEmpty() {
      return true;
 }
 
+function checkKVS() {
+  queueShellyCall("KVS.List", { match: "*"}, 
+    function(result, error_code, error_message) {
+      if(def(result) && result.rev != last_kvs_rev) {
+	    last_kvs_rev = result.rev;
+	    Shelly.emitEvent("KVS", {});
+      }
+    }
+  );
+}
 
 /* function shellyEventCb()
  * A shelly or user defined event has been triggered */
 function shellyEventCb(event) {
-  switch (event.info.event) {
-
-    case "continueExecQueuedShellyCalls"													// A Shelly call task is completed, continue
-      execQueuedShellyCalls();																// with next.
+  //print("event.component" + event.component);
+  //print("event.info" + event.info);
+  //print("event.info.event" + event.info.event);
+  //print("Component " + Object.keys(event.component)[0]);
+  //print("JSON " + JSON.stringify(event))
+  switch (event.name){
+    case "script":
+      switch (event.info.event) {
+        case "continueExecQueuedShellyCalls":													// A Shelly call task is completed, continue
+          execQueuedShellyCalls(event);															// with next.
+          break;
+        case "KVS":
+          updateSettingsFromKVS();
+          break;
+       
+        default:
+          break;
+      }
       break;
-
     default:
       break;
   }
@@ -413,24 +600,27 @@ function must_shedd(current) {
     min_triptime_time = -1;																	// down if previously overloaded but not
     over_load_time = -1;																	// shedded
     return false;
-  }  
+  }
   if (over_load_time == -1) {
     over_load_time = 0;
+    min_trip_time = current_trip_time;
     log(LOG_INFO, "Fuse is overloaded at " + current + " A, it will trip in " + current_trip_time +
-        "shedding will start in " + current_trip_time/margin_factor_setting  + " seconds");
+        " seconds, shedding will start in " + current_trip_time/margin_factor_setting  + " seconds");
   }
   else over_load_time += scan_interval * (overrun_cnt + 1);
-  if (current_trip_time < min_trip_time || min_trip_time == -1) {
+  //print("ocerload time: " + over_load_time );
+  if (current_trip_time < min_trip_time) {
     min_trip_time = current_trip_time;
-    log(LOG_INFO, "Fuse overload escalation, now at " + current " A, it will trip in " +
-        current_trip_time + "shedding will start in " + current_trip_time/margin_factor_setting  +
+    log(LOG_INFO, "Fuse overload escalation, now at " + current + " A, it will trip in " +
+        current_trip_time + " seconds, shedding will start in " + current_trip_time/margin_factor_setting  +
         " seconds");  
   }
   if (over_load_time > min_trip_time/margin_factor_setting ||
-     (min_trip_time/margin_factor_setting) - over_load_time < scan_interval * (overrun_cnt + 1))
+     (min_trip_time/margin_factor_setting) - over_load_time < scan_interval * (overrun_cnt + 1)) {
     log(LOG_INFO, "Fuse overloaded with " + current + " A for " + over_load_time +
         " seconds, shedding will start");
     return true;
+  }
   return false;
 }
 
@@ -451,15 +641,15 @@ function can_load(current) {
   if (cool_down_time == -1) {
     cool_down_time = 0;
     cool_logging = true;
-    log(LOG_INFO, "The fuse that was previously overloaded, and now at " + current + 
-        " A, needs to cool down for " + cool_down_time_setting +
+    log(LOG_INFO, "The fuse that was previously overloaded, is now at " + current + 
+        " A, but needs to cooled down for " + cool_down_time_setting +
         " seconds before any further loading is allowed");
   }
   else cool_down_time += scan_interval * (overrun_cnt + 1);
   if (cool_down_time >= cool_down_time_setting) {
     if (cool_logging) {
-      log(LOG_INFO, "The fuse that was previously overloaded is now at " + current + 
-          " A, and has been cooled down for further loading");
+      log(LOG_INFO, "The fuse that was previously overloaded with " + current + 
+          " A has been cooled down for further loading");
       cool_logging = false;
     }
     return true;
@@ -476,12 +666,22 @@ function get_current() {																	// TODO, must be changed to async
   let previous_current_ten_percent_deviation = 0;											// in order to fetch from NW API
   let total_current = 0;
   if (simulation) {
+    //print("switch state: " + switch_state);
+
     for (let i = 0; i < first_to_last_to_shed.length; i++) {
-      current_vector[i] = simulated_current[i];
-      if (idx_next_to_toggle_off <= i) {
-        last_known_current[i] = current_vector[i];
+      //if (idx_next_to_toggle_off <= i && first_to_last_to_shed[i].measure && switch_state[i]) {
+      //print("switch state is: " + switch_state[i] + " i=" + i);
+      if (switch_state[i] == true && first_to_last_to_shed[i].measure) {
+          //print("Measuring");
+          last_known_current[i] = Number(simulated_current[i]);
+          current_vector[i] = Number(simulated_current[i]);
+      }
+      else {
+        //print("Dont measure");
+        current_vector[i] = 0;
       }
     }
+    //print("current vector: " + current_vector);
   }
   else {
     for (let i = 0; i < let first_to_last_to_shed.length; i++) {
@@ -493,7 +693,7 @@ function get_current() {																	// TODO, must be changed to async
       else if ( first_to_last_to_shed[i].measure)
 	queueShellyCall("HTTP.GET", { url: "http://" + first_to_last_to_shed[i].addr +
                   "/rpc/Shelly.GetStatus?switch:" + i }, 
-			function(result, error_code, error_message, idx( {
+			function(result, error_code, error_message, idx) {
 			  if( def( result )) {
 			    current_vector[idx] = result.current;
 			    if (idx_next_to_toggle_off <= i) 
@@ -505,10 +705,11 @@ function get_current() {																	// TODO, must be changed to async
   }
   for (let i = 0; i < current_vector.length; i++)
     total_current += current_vector[i];
-  if (total_current > previous_current_ten_percent_deviation*1.1 ||
-      total_current =< previous_current_ten_percent_deviation*1.1) {
+  if (previous_current_ten_percent_deviation && 
+      (total_current > previous_current_ten_percent_deviation*1.1 ||
+      total_current <= previous_current_ten_percent_deviation*0.9)) {
     log(LOG_INFO, "Current has changed more than 10% since last report, from: " 
-        + previous_current_ten_percent_deviation + " A - to: " + total_current + "A");
+        + previous_current_ten_percent_deviation + " A - to: " + total_current + " A");
     previous_current_ten_percent_deviation = total_current;
   }
   return total_current;
@@ -520,13 +721,10 @@ function get_current() {																	// TODO, must be changed to async
 function turn(idx, dir) {
   log(LOG_INFO, "Turning switch " + idx + " to " + dir);
   o = first_to_last_to_shed[idx];
-  on = dir == "on" ? "true" : "false";
+  on = dir == "on" ? true : false;
   switch_state[idx] = on;
-  if(simulation) {
-    if (dir == "off") simulated_current[idx] = 0;
-    else if (dir == "on") simulated_current[idx] = last_known_current[idx];
+  if(simulation)
 	return;
-  }
   if (def(o.gen)) {
     let cmd;
     if (o.gen == 1) cmd = o.type + "/" + o.id.toString() + "?turn=" + dir;
@@ -554,6 +752,7 @@ function turnCallBack(result, error_code, error_message, idx) {
 /* function updateSettingsFromKVS();
  * This functions sets the script variables from the Shelly Key-Value store which can be user set. */
 function updateSettingsFromKVS(){
+  //print("GOT KVS UPDATE");
   queueShellyCall("KVS.GetMany", {},
     function (result, error_code, error_message) {
       for (let KVS in result.items) {
@@ -617,33 +816,6 @@ function updateSettingsFromKVS(){
              }
              break;
 
-          case "simulation":
-            if ( simulation != result.items[KVS].value) {
-              if (result.items[KVS].value)
-                log(LOG_INFO + "Update settings from KVS - Simulation started");
-              else 
-                log(LOG_INFO, "Update settings from KVS - Simulation stopped");
-              simulation = result.items[KVS].value;
-            }
-            break;
-
-          case "simulated_current":
-            let modified = false;
-            let previous_simulated_current = new Array(last_known_simulated_current.length);
-            for (let i = 0; i < last_known_simulated_current.length; i++) {
-              if (last_known_simulated_current[i] != result.items[KVS].value[i]) {
-                simulated_current[i] = result.items[KVS].value[i];
-                previous_simulated_current[i] = last_known_simulated_current[i];
-                last_known_simulated_current[i] = simulated_current[i];
-                modified = true;
-              }
-            }
-            if (modified) {
-              log(LOG_INFO, "Simulated currents changed to: " + previous_simulated_current +
-                  " -> " + result.items[KVS].value);
-            }
-            break;
-
           case "current_restriction_setting":
             if (current_restriction_setting != result.items[KVS].value) {
               current_restriction_setting = result.items[KVS].value;
@@ -676,13 +848,13 @@ function updateSettingsFromKVS(){
             log(LOG_INFO, "Reboot to factory default");
             queueShellyCall("KVS.List", {}, 
                             function (result, error_code, error_message) {
-		              for (key in result.keys) {
-		                queueShellyCall("KVS.DELETE", {key:key},
-		                                function(result, error_code, error_message) {
-                                                  return;
-                                                }
-                                )
-		              }
+		                      for (key in result.keys) {
+		                        queueShellyCall("KVS.DELETE", {key:key},
+		                          function(result, error_code, error_message) {
+                                    return;
+                                  }
+                                );
+		                      }
                               return;
                             }
             );
@@ -695,7 +867,7 @@ function updateSettingsFromKVS(){
       }
       return; 
     }
-  )
+  );
 }
 
 
@@ -710,18 +882,18 @@ function createKV(k, v, over_write) {
            function(result, error_code, error_message){
              return;  
            }
-         )
-       } 
+         );
+       }
     }
-  )
+  );
 }
 
 
 /* function updateKvs()
  * Creates and update the Key-Value store from default settings */
 function updateKvs() {
-  log(LOG_INFO, "Creating KVS entries and setting them to default if not exist,\
-      if exist - updating script settings to default");
+  log(LOG_INFO, "Creating KVS entries and setting them to default if not exist, " +
+      "if exist - updating script settings to default");
   createKV("hostname_setting", hostname_setting, false);
   createKV("fuse_rating_setting", fuse_rating_setting, false);
   createKV("fuse_char_setting", fuse_char_setting, false);
@@ -730,8 +902,8 @@ function updateKvs() {
   createKV("first_to_last_to_shed", first_to_last_to_shed, false);
   createKV("time_to_test_loading_setting", time_to_test_loading_setting, false);
   createKV("scan_interval", scan_interval, false);
-  createKV("simulation", simulation, false);
-  createKV("simulated_current", simulated_current, false);
+  //createKV("simulation", simulation, false);
+  //createKV("simulated_current", simulated_current, false);
   createKV("current_restriction_setting", current_restriction_setting, false);
   createKV("current_restriction_hysteresis_setting", current_restriction_hysteresis_setting, false);
   createKV("overload_webhook_uri_setting", overload_webhook_uri_setting, false);
@@ -742,25 +914,32 @@ function updateKvs() {
 /* function scanPower()
  * Main scan loop, gets invoked every "scan_interval" seconds. */
 function scanPower() {
+  //print("Scanning");
+  current_scan_time  += scan_interval;
   if (!last_overrun)
 	overrun_cnt = 0;
-  if (!shellyCallQueueEmpty()) {
+  if (running) {
     last_overrun = true;
     overrun_cnt++;
-    log(LOG_WARN, "Overrun, count is: " overrun_cnt++);
+    log(LOG_WARN, "Overrun, count is: " + overrun_cnt++);
+    running = false;
     return;
   }
+  running = true;
   last_overrun = false;
-  updateSettingsFromKVS();
-  let total = get_current();
+  if (!(current_scan_time % 10)) 
+    checkKVS();
+  total = get_current();
+  //print("Total: " + total);
   time_to_test_loading += scan_interval;
   if (idx_next_to_toggle_off && time_to_test_loading > time_to_test_loading_setting) {
     last_known_current[idx_next_to_toggle_off-1] = 0;
     time_to_test_loading = 0;
     log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
   }
-  if (must_shedd(total)) {
+  if (must_shedd(total)) { //CHECK Boundaries
     direction = "shedding";
+    print("Shedding....");
     time_to_test_loading = 0;
   }
   else if (idx_next_to_toggle_off && can_load(total) && total + 
@@ -771,30 +950,34 @@ function scanPower() {
   }
   else direction = "coasting";
   if (direction == "loading") {
+    print("Loading....");
     coasting_report_cnt = 0;
-    while (!let first_to_last_to_shed[idx_next_to_toggle_off].shed && idx_next_to_toggle_off > 0)
-      idx_next_to_toggle_off -= 1;
-
+    while (idx_next_to_toggle_off > 0) {
+      idx_next_to_toggle_off--;
+      if (first_to_last_to_shed[idx_next_to_toggle_off].shed)
+        break;
+    }
     if ((idx_next_to_toggle_off == 0 && first_to_last_to_shed[idx_next_to_toggle_off].shed) ||
          idx_next_to_toggle_off) { 
       if (overload_webhook_uri_setting != "" && hostname_setting != "")
         queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                         {hostname: hostname_setting, state: "Loading", current: total,
-                         next_to_discconect: idx_next_to_toggle_off}}, 
-			function(result, error_code, error_message) {
-			  return;
-                        });
-      print(LOG_INFO, "Loading channel " + idx_next_to_toggle_off + ", current before loading is: " +
+                        next_to_discconect: idx_next_to_toggle_off}}, 
+						function(result, error_code, error_message, idx) {
+			              return;
+                        }
+                        );
+      log(LOG_INFO, "Loading channel " + (idx_next_to_toggle_off) + ", current before loading is: " +
                        total +" A, expected current after loading is: " + 
-                       {total + last_known_current[idx_next_to_toggle_off]} + " A");
+                       (total + last_known_current[idx_next_to_toggle_off]) + " A");
       turn(idx_next_to_toggle_off, "on");
     }
   }
   if (direction == "shedding") {
     coasting_report_cnt = 0;
-    while (!let first_to_last_to_shed[idx_next_to_toggle_off].shed && idx_next_to_toggle_off <
-           first_to_last_to_shed)
-      idx_next_to_toggle_off += 1;
+    while (idx_next_to_toggle_off < first_to_last_to_shed.length &&
+           !first_to_last_to_shed[idx_next_to_toggle_off].shed)
+      idx_next_to_toggle_off++;      
     if (idx_next_to_toggle_off != first_to_last_to_shed){
       if (overload_webhook_uri_setting != "" && hostname_setting != "")
         queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
@@ -802,40 +985,41 @@ function scanPower() {
                          next_to_discconect: idx_next_to_toggle_off}}, 
 			function(result, error_code, error_message) {
 			  return;
-                        });
-      print("Shedding channel " + idx_next_to_toggle_off + " current before shedding is: "
+            });
+      log(LOG_INFO, "Shedding channel " + idx_next_to_toggle_off + ", current before shedding is: "
             + total + " A, expected current after shedding is: " +
-            + {total - last_known_current[idx_next_to_toggle_off]} + " A");
+            + (total - last_known_current[idx_next_to_toggle_off]) + " A");
       turn(idx_next_to_toggle_off, "off");
       if (idx_next_to_toggle_off < first_to_last_to_shed.length)
-        idx_next_to_toggle_off += 1;
+        idx_next_to_toggle_off++;
     }
   }
   if (direction == "coasting") {
-     if (coasting_report_cnt * (scan_itervall * (overrun_cnt + 1) >= 60)
+     if (coasting_report_cnt * scan_interval * (overrun_cnt + 1) >= 60)
         coasting_report_cnt = 0;
      else
-       coasting_report_cnt++
+       coasting_report_cnt++;
      if (!coasting_report_cnt)
        queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                        {hostname: hostname_setting, state: "Shedding", current: total,
                         next_to_discconect: idx_next_to_toggle_off}}, 
 			function(result, error_code, error_message) {
 			  return;
-                        });
+            });
   }
+  running = false;
+  return;
 }
 /*********************************************************************************************************/
-
-
-
 
 /*********************************************************************************************************/
 /*                                              main/init                                                */
 /*********************************************************************************************************/
-updateKvs();
 for (let i = 0; i < first_to_last_to_shed.length; i++) turn(i, switch_state[i] ? "on" : "off");
+updateKvs();
+HTTPServer.registerEndpoint("shedder", shedderEndPoint);
 Shelly.addEventHandler(shellyEventCb); 
 Timer.set(scan_interval * 1000, true, scanPower);
+
 
 /*********************************************************************************************************/
