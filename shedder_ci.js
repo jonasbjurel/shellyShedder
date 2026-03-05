@@ -1,3 +1,16 @@
+//Params
+
+
+
+
+
+let shelly_call_records = [];
+let calls = 0;
+let timer = [0,0,0,0,0];
+let kvs_set_cnt = 0;
+let target_script_id = 0;
+let KVSBackup = {};
+
 let verification_phase = 0;
 let verification_sub_phase = 0;
 let verification_sub_sub_phase = 0;
@@ -58,9 +71,6 @@ function execQueuedShellyCalls(event) {
 		              call_record.cb(result, error_code, error_message,
                         call_record.cb_params);
                       calls--;
-                      //print(call_record.meth);
-                      //print(call_record.meth_param);
-		              //shelly_call_records.splice(0, 1);
 		              if (shelly_call_records.length && calls == CALL_LIMIT-2){
 		                Shelly.emitEvent("continueExecQueuedShellyCalls", {});
 		                log(LOG_INFO, "Resuming calls");
@@ -90,11 +100,6 @@ function shellyCallQueueEmpty() {
 /* function shellyEventCb()
  * A shelly or user defined event has been triggered */
 function shellyEventCb(event) {
-  //print("event.component" + event.component);
-  //print("event.info" + event.info);
-  //print("event.info.event" + event.info.event);
-  //print("Component " + Object.keys(event.component)[0]);
-  //print("JSON " + JSON.stringify(event))
   switch (event.name){
     case "script":
       switch (event.info.event) {
@@ -110,6 +115,7 @@ function shellyEventCb(event) {
   }
 }
 
+
 macro waitTimer(timer_id, time) {
   if (timer[timer_id] == 0)
     timer[timer_id] = ~~(time/scan_interval);
@@ -119,35 +125,41 @@ macro waitTimer(timer_id, time) {
       return;
   }
 }
+
+
 /* function reboot()
  * Reboots the Shelly */
 function reboot() {
   Shelly.Reboot();
 }
 
-function backupKVS(backup, fun) {
+
+function backupKVS(backup, cb) {
   queueShellyCall("KVS.GetMany", {match:"*"}, 
-                  function (result, error_code, error_message, fun) {
-                    backup = result;
-                    if (def(fun))
-                      fun(result, error_code, error_message);
+                  function (result, error_code, error_message, params) {
+                    if (def(result)){
+					  params.backup = result;
+                      cb(params.backup, error_code, error_message);
+					}
+					else
+                      cb(result, error_code, error_message);
                   },
-                  fun
+				  {cb:cb, backup:backup}
                   );
 }
-   
+
 function KVSSet(key_values, cb) {
-  if(set_cnt != 0)
+  if(kvs_set_cnt != 0)
     return -1;
   queueShellyCall("KVS.GetMany", {match:"*"}, 
                   function (result, error_code, error_message, params) {
                     for(key in params.key_values){
-                      set_cnt++;
+                      kvs_set_cnt++;
                       if(result.key != params.key_values.key) {
                         queueShellyCall("KVS.Set", key ,
                                         function(result, error_code, error_message, cb) {
-                                          set_cnt--;
-                                          if(!set_cnt)
+                                          kvs_set_cnt--;
+                                          if(!kvs_set_cnt)
                                             cb();
                                           return;
                                         },
@@ -164,10 +176,9 @@ function KVSSet(key_values, cb) {
 
 function setCurrentRestriction(current_restriction, cb) {
   queueShellyCall("HTTP.SET", {url:"http://localhost/shelly/script/" + target_script_id +
-                              "/shedder?setCurrentRestriction=" + restriction}, 
+                              "/shedder?setCurrentRestriction=" + restriction + "=" + current_restriction}, 
                   function (result, error_code, error_message, cb) {
-                    if(def(cb))
-                      cb(result, error_code, error_message);
+                    cb(result, error_code, error_message);
                     return;
                   },
                   cb
@@ -178,8 +189,7 @@ function setSimulation(simulation, cb) {
   queueShellyCall("HTTP.SET", {url:"http://localhost/shelly/script/" + target_script_id +
                               "/shedder?simulation=" + simulation}, 
                   function (result, error_code, error_message, cb) {
-                    if(def(cb))
-                      cb(result, error_code, error_message);
+                    cb(result, error_code, error_message);
                     return;
                   },
                   cb
@@ -190,8 +200,7 @@ function setCurrent(current, cb) {
   queueShellyCall("HTTP.SET", {url:"http://localhost/shelly/script/" + target_script_id +
                               "/shedder?setSimulatedCurrent=" + current}, 
                   function (result, error_code, error_message, cb) {
-                    if(def(cb))
-                      cb(result, error_code, error_message);
+                    cb(result, error_code, error_message);
                     return;
                   },
                   cb
@@ -202,22 +211,29 @@ function setCurrent(current, cb) {
 function getCurrent(current, cb) {
   queueShellyCall("HTTP.GET", {url:"http://localhost/shelly/script/" + target_script_id +
                               "/shedder?getCurrent"}, 
-                  function (result, error_code, error_message, cb) {
-                    if(def(cb))
-                      cb(result, error_code, error_message);
+                  function (result, error_code, error_message, params) {
+                    if(def(result)) {
+					  params.current = JSON.parse(result);
+                      params.cb(params.current, error_code, error_message);
+					}
+					else
+                      params.cb(result, error_code, error_message);						
                     return;
                   },
-                  cb
+				  {cb:cb, current:current]
                   );
-  
 }
 
 function getSwitchState(switch_state, cb) {
   queueShellyCall("HTTP.GET", {url:"http://localhost/shelly/script/" + target_script_id +
                               "/shedder?getSwitchState"}, 
-                  function (result, error_code, error_message, cb) {
-                    if(def(cb))
-                      cb(result, error_code, error_message);
+                  function (result, error_code, error_message, params) {
+                    if(def(result)){
+					  params.switch_state = JSON.result(
+                      params.cb(params.switch_state, error_code, error_message);
+					}
+					else
+                      params.cb(result, error_code, error_message);
                     return;
                   },
                   cb
@@ -227,20 +243,25 @@ function getSwitchState(switch_state, cb) {
 function getLoadState(load_state, cb) {
   queueShellyCall("HTTP.GET", {url:"http://localhost/shelly/script/" + target_script_id +
                               "/shedder?getLoadState"}, 
-                  function (result, error_code, error_message, cb) {
-                    if(def(cb))
-                      cb(result, error_code, error_message);
+                  function (result, error_code, error_message, params) {
+                    if(def(result)) {
+					  params.load_state = JSON.parse(result);
+                      params.cb(params.load_state, error_code, error_message);
+					}
+					else:
+                      params.cb(result, error_code, error_message);
                     return;
                   },
-                  cb
+				  {cb:cb, load_stat:load_state}
                   );
 }
 /*********************************************************************************************************/
 
 
 function setup(){
-  KVSBackup = backupKVS();
-  KVSSet({fuse_rating_setting:16, fuse_char_setting:"C", margin_factor_setting:4,
+  backupKVS(KVSBackup);
+  KVSSet({fuse_rating_setting:fuse_rating_setting, fuse_char_setting:fuse_char_setting, margin_factor_setting:margin_factor_setting
+		  ,
           cool_down_time_setting:10, time_to_test_loading_setting:30,
           current_restriction_hysteresis_setting:0.1, log_level_setting:LOG_INFO});
   setCurrentRestriction(-1);
