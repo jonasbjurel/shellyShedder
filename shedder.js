@@ -206,6 +206,7 @@
 
 
 /********************************************    Constants ***********************************************/
+const LOG_PREFIX = "shedder"
 const LOG_VERBOSE = 0;
 const LOG_INFO = 1;
 const LOG_WARN = 2;
@@ -235,7 +236,7 @@ let scan_interval = 0.2;
 let simulation = true;
 let simulated_current = new Array(first_to_last_to_shed.length);
 for (let i = 0; i < first_to_last_to_shed.length; i++) simulated_current[i] = 0;
-let current_restriction_setting = 0;
+let current_restriction_setting = -1;
 let current_restriction_hysteresis_setting = 0.1;
 let overload_webhook_uri_setting = "";
 let log_level_setting = LOG_INFO;
@@ -271,7 +272,7 @@ let last_known_current = new Array(first_to_last_to_shed.length);
 for (let i = 0; i < first_to_last_to_shed.length; i++) last_known_current[i] = 0;
 let min_trip_time = -1;
 let over_load_time = -1;
-let cool_down_time = -1;
+let cool_down_time_remaining = -1;
 let time_to_test_loading = 0;
 let cool_logging = false;
 let shelly_call_records = [];
@@ -325,9 +326,9 @@ function shedderEndPoint(req, res) {
   //print(parseQuery(JSON.parse(req.query).key));
   //print(JSON.parse(req.query).method);
   let key_values = parseQuery(req.query);
-  print(key_values);
-  print(Object.keys(key_values));
-  print(Object.keys(key_values)[0]);
+  //print(key_values);
+  //print(Object.keys(key_values));
+  //print(Object.keys(key_values)[0]);
 
   switch(Object.keys(key_values)[0]){
     case "simulation":
@@ -392,13 +393,13 @@ function shedderEndPoint(req, res) {
       simulated_current = ordered_simulation_current;
       break;
     case "getCurrent":
-      res.body = JSON.stringify({total: total, channels:current_vector});
+      res.body = JSON.stringify({current:{total: total, channels:current_vector}});
       res.code = 200;
       break;
       
     case "getLoadStatus":
       res.body = JSON.stringify({loadDirection:direction ,
-                                  overLoadTime:over_load_time, coolDownTime:cool_down_time,
+                                  overLoadTime:over_load_time, coolDownTimeRemaining:cool_down_time_remaining,
                                   lastKnownCurrent:last_known_current,
                                   currentRestriction:current_restriction_setting});
       res.code = 200;
@@ -407,7 +408,7 @@ function shedderEndPoint(req, res) {
     case "getTripTime":
       let trip_current = Number(key_values.getTripTime);
       if (def(trip_current)){
-        res.body = JSON.stringify({current:trip_current, tripTime:getTripTime(trip_current),
+        res.body = JSON.stringify(tripData:{current:trip_current, tripTime:getTripTime(trip_current),
                                   shedMarginFactor:margin_factor_setting});
         res.code = 200;
       }
@@ -445,7 +446,7 @@ function shedderEndPoint(req, res) {
  *  LOG_VERBOSE, LOG_INFO, LOG_WARN, LOG_ERROR and LOG_CRITICAL */
 function log(severity, log_entry) {
   if (severity >= log_level_setting)
-    print(log_entry);
+    print(LOG_PREFIX + ": " + log_entry);
 }
 
 /* function queueShellyCall()
@@ -590,7 +591,7 @@ function getTripTime(current) {
  * and characteristics as provided by getTripTime() functions and applies a safety margin defined by 
  * and applies a margin as defined by "margin_factor_setting" */
 function must_shedd(current) {
-  if (current_restriction_setting && current > current_restriction_setting) {
+  if (current_restriction_setting != -1 && current > current_restriction_setting) {
     log(LOG_INFO, "The total curret exceeds northbound ordered current restriction " + 
         current + " A > " + current_restriction_setting + "A");
     return true;
@@ -629,34 +630,31 @@ function must_shedd(current) {
  * Provides an indication whether the group fuse can take more load even if so little.
  * After an overload situation, the fuse is not allowed to take more load until the 
  * fuse has cooled down for "cool_down_time_setting" seconds. */
-function can_load(current) {
-  if (current_restriction_setting && current * (1 + current_restriction_hysteresis_setting) > 
+function can_load(current) {return true;}/*
+  if (current_restriction_setting != -1 && current * (1 + current_restriction_hysteresis_setting) > 
       current_restriction_setting) {
-	return false;
-  }
-  if (current > fuse_rating_setting) {
-    cool_down_time = -1;
     return false;
   }
-  if (cool_down_time == -1) {
-    cool_down_time = 0;
-    cool_logging = true;
-    log(LOG_INFO, "The fuse that was previously overloaded, is now at " + current + 
-        " A, but needs to cooled down for " + cool_down_time_setting +
-        " seconds before any further loading is allowed");
+  if (current > fuse_rating_setting) {
+    cool_down_time_remaining = cool_down_time_setting;
+    return false;
   }
-  else cool_down_time += scan_interval * (overrun_cnt + 1);
-  if (cool_down_time >= cool_down_time_setting) {
-    if (cool_logging) {
-      log(LOG_INFO, "The fuse that was previously overloaded with " + current + 
-          " A has been cooled down for further loading");
-      cool_logging = false;
-    }
+  if (cool_down_time_remaining == cool_down_time_setting) {
+    log(LOG_INFO, "The fuse that was previously overloaded, is now at " + current + 
+                  " A, but needs to cooled down for " + cool_down_time_setting +
+                  " seconds before any further loading is allowed");
+    return false;
+  }
+  if (cool_down_time_remaining <= scan_interval * (overrun_cnt + 1)) {
+    log(LOG_INFO, "The fuse that was previously overloaded with " + current + 
+                  " A has been cooled down for further loading");
+    cool_down_time_remaining = -1;
     return true;
   }
+  cool_down_time -= scan_interval * (overrun_cnt + 1);
   return false;
 }
-
+*/
 
 /* function get_current();
  * Provides the aggregated current through the group fuse to be protected, I.e. the sum of the 
