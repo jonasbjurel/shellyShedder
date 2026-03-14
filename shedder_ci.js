@@ -5,8 +5,9 @@ let fuse_rating_setting = 16;
 let fuse_char_setting = "C";
 let margin_factor_setting = 4;
 let cool_down_time_setting = 10;
-let time_to_test_loading_setting = 30;
+let time_to_test_loading_setting = 120;
 let current_restriction_hysteresis_setting = 0.1;
+let target_scan_interval = 0.5;
 
 
 
@@ -31,6 +32,8 @@ let scan_interval = 0.5;
 let current = undefined;
 let switch_status = undefined;
 let load_status = undefined;
+let lowest_prio_chan = 0;
+
 /********************************************    Constants ***********************************************/
 const LOG_PREFIX = "shedderCI";
 const LOG_VERBOSE = 0;
@@ -91,7 +94,7 @@ function execQueuedShellyCalls(event) {
                       calls--;
 		              if (shelly_call_records.length && calls == CALL_LIMIT-2){
 		                Shelly.emitEvent("continueExecQueuedShellyCalls", {});
-		                log(LOG_INFO, "Resuming calls");
+		                log(LOG_VERBOSE, "Resuming calls");
 		              }
                 }, shelly_call_records[0]
     );
@@ -100,7 +103,7 @@ function execQueuedShellyCalls(event) {
       Shelly.emitEvent("continueExecQueuedShellyCalls", {}); 
   }
   else {
-    log(LOG_INFO, "Max calls reached, pausing calls");
+    log(LOG_VERBOSE, "Max calls reached, pausing calls");
   }
 }
 
@@ -361,7 +364,7 @@ function verificationEngine() {
             return;
           }
           else {
-            log(LOG_INFO, "Setup INFO: KVS backup created: " + JSON.stringify(KVSBackup));
+            log(LOG_INFO, "Setup INFO: KVS backup created");
             verification_sub_phase++;
             verification_sub_sub_phase = 0;
             return;
@@ -372,7 +375,7 @@ function verificationEngine() {
           KVSSet({fuse_rating_setting:fuse_rating_setting, fuse_char_setting:fuse_char_setting,
                   margin_factor_setting:margin_factor_setting, cool_down_time_setting:cool_down_time_setting,
                   time_to_test_loading_setting:time_to_test_loading_setting, current_restriction_hysteresis_setting:current_restriction_hysteresis_setting,
-                  log_level_setting:LOG_INFO});
+                  scan_interval:target_scan_interval, log_level_setting:LOG_INFO});
           setCurrentRestriction(-1);
           setSimulation(true);
           setSimulatedCurrent([0,0,0,0]);
@@ -399,11 +402,9 @@ function verificationEngine() {
       getCurrent(function(result, error_code, error_message) {current = result});
       getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
       getLoadStatus(function(result, error_code, error_message) {load_status = result});
-      print("current: " + JSON.stringify(current));
-      print("Load: " + JSON.stringify(load_status));
-      print("Switch: " + JSON.stringify(switch_status));
-
-     
+      //print("current: " + JSON.stringify(current));
+      //print("Load: " + JSON.stringify(load_status));
+      //print("Switch: " + JSON.stringify(switch_status));
       if (def(current) && def(switch_status) && def(load_status) && current.total == 0 &&
         !switch_status.some(function(sw) {return sw.switchState == "on";}) && 
         load_status.overLoadTime == -1 && load_status.coolDownTimeRemaining == -1) {
@@ -411,7 +412,7 @@ function verificationEngine() {
         current = undefined;
         load_status = undefined;
         switch_status = undefined;
-        verification_phase = 4; 
+        verification_phase = 5; 
         verification_sub_phase = 0;
         break;
       }
@@ -563,7 +564,6 @@ function verificationEngine() {
           getLoadStatus(function(result, error_code, error_message){load_status=result});
           let curr_sum = 0;
           verification_current_vector.slice(0,4).forEach(function(curr){curr_sum += curr});
-          print("CurrentSum: " + curr_sum);
           getTripTime(curr_sum, function(result, error_code, error_message) {verification_trip_data = result; print("Tripdata: " + JSON.stringify(result))});
           getSwitchStatus(function(result, error_code, error_message){switch_status = result});
         }
@@ -637,63 +637,84 @@ function verificationEngine() {
       else
         verification_sub_phase++;
       break;
- /*     
+ 
  //TC-5: Shed test @ load: 1.45*In
+ 
     case 5:
-      if (waitTimer(0, 0.5)) return;
-      getSwitchStatus(switch_status);
+      if (waitTimer(0, 1)) return;
+      getSwitchStatus(function(result, error_code, error_message){switch_status = result});
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= Shed test @ load: 1.45*In =============");
+        verification_current_vector = [fuse_rating_setting*1.45/4,fuse_rating_setting*1.45/4,
+                                      fuse_rating_setting*1.45/4,fuse_rating_setting*1.45/4];
+        setSimulatedCurrent(verification_current_vector);
         verification_sub_phase++;
         break; 
       }
-      if(!def(switch_status) {
+      if(!def(switch_status)) {
           log(LOG_ERROR, "1.45*In shed test ERROR: Could not obtain switch status");
           stopScript(true);
           verification_phase = -1;
           break;
       }
-      if (verification_sub_phase < ~~(0.8*90/(0.5*margin_factor))){
-        if(switch_status.some(function(switch){return (switch.switchState == "off" && switch.shed) ? true:false})){
+      if (verification_sub_phase < ~~(0.8*10)){
+        if(switch_status.some(function(sw){return (sw.switchState == "off" && sw.shed) ? true:false})) {
           log(LOG_ERROR, "1.45*In shed test ERROR: Unexpected early shedding happened"
           stopScript(true);
           verification_phase = -1;
           break;
         }
+        else
+          log(LOG_INFO, "1.45*In shed test INFO: Shedding did not happened prematurely");
       }
-      if (verification_sub_phase == ~~(1.2*90/(0.5*margin_factor))) {
-        let found_first_sheddable = false;
-        let correct_shedding = true;
-        for(let i=0; < switch_status.length; i++) {
-          if(found_first_sheddable) {
-            if(switch_status.shed && switch_status.switchState == "off")
-              correct_shedding = false;
+      if (verification_sub_phase == ~~(1.2*10)) {
+        lowest_prio_chan = 0;
+        for(let i=0; i<switch_status.length; i++) {
+          if (switch_status[i].priority > switch_status[lowest_prio_chan].priority)
+             lowest_prio_chan = i;
+        }
+        for(let i=0; i<switch_status.length; i++) {
+          if (i == lowest_prio_chan && switch_status[i].switch_state === "on") {
+            log(LOG_ERROR, "1.45*In shed test ERROR: Expeded channel " + i + "to have shedded but it reported " + switch_status[i].switch_state);
+            stopScript(true);
+            verification_phase = -1;
+            break;
           }
-          else if(switch_status.shed) {
-            found_first_sheddable = true;
-            if(switch_status.switchState == "on")
-              correct_shedding = false;
+          else
+            log(LOG_INFO, "1.45*In shed test INFO: Channel " + i + "shedded as expected, reported state: " + switch_status[i].switch_state);
+          if (i != lowest_prio_chan && switch_status[i].switch_state === "off" && switch_status[i].shed) {
+            log(LOG_ERROR, "1.45*In shed test ERROR: Channel " + i + " was not expected to have shedded but it reported " + switch_status[i].switch_state);
+            stopScript(true);
+            verification_phase = -1;
+            break;
+          }
+          else
+            log(LOG_INFO, "1.45*In shed test : Channel " + i + " is not shedded as is expected, reported: " + switch_status[i].switch_state);
+        }
+        log(LOG_INFO, "1.45*In shed test INFO: Setting current to [0,0,0,0] and waiting for fuse to cool down and shedding to de-activate");
+        setSimulatedCurrent([0,0,0,0]);
+      }
+      if (verification_sub_phase > ~~(1.2*10) + cool_down_time_setting*1.2) {
+        for(let i=0; i<switch_status.length; i++) {
+          if (switch_status[i].shed && switch_status[i].switch_state === "off") {
+            log(LOG_ERROR, "1.45*In shed test ERROR: Didnt expeded channel " + i + "to still be sehedded " + switch_status[i].switch_state);
+            stopScript(true);
+            verification_phase = -1;
+            break;
           }
         }
-        if(!correct_shedding){
-          log(LOG_ERROR, "1.45*In shed test ERROR: Shedding did not happen in time");
-          stopScript(true);
-          verification_phase = -1;
-          break;
-        } 
-        else {
-         log(LOG_INFO, "1.45*In shed test SUCCESS: Correct shedding in time");
-         current = undefined;
-         load_status = undefined;
-         switch_status = undefined;
-         verification_phase++; 
-         verification_sub_phase = 0;
-         break; 
-        }
+        log(LOG_INFO, "1.45*In shed test SUCCESS: Channel " + lowest_prio_chan + " shedded and reconnected as expected");
+        current = undefined;
+        load_status = undefined;
+        switch_status = undefined;
+        verification_phase++; 
+        verification_sub_phase = 0;
+        break;      
       }
-      verification_sub_phase++
+      verification_sub_phase++;
       break;
 
+/*
  //TC-6: Cool-down @ load: 3/4*1.45*In
     case 6:
       if(waitTimer(0, 0.5)) reurn;
