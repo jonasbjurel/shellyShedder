@@ -232,7 +232,7 @@ let first_to_last_to_shed = [
   { addr: "localhost", gen: 2, type: "relay", id: 0, shed: false, measure: true },
 ];
 let time_to_test_loading_setting = 60;
-let scan_interval = 0.2;
+let scan_interval = 0.5;
 let simulation = true;
 let simulated_current = new Array(first_to_last_to_shed.length);
 for (let i = 0; i < first_to_last_to_shed.length; i++) simulated_current[i] = 0;
@@ -477,7 +477,7 @@ function execQueuedShellyCalls(event) {
 		              //shelly_call_records.splice(0, 1);
 		              if (shelly_call_records.length && calls == CALL_LIMIT-2){
 		                Shelly.emitEvent("continueExecQueuedShellyCalls", {});
-		                log(LOG_INFO, "Resuming calls");
+		                log(LOG_VERBOSE, "Resuming calls");
 		              }
                 }, shelly_call_records[0]
     );
@@ -486,7 +486,7 @@ function execQueuedShellyCalls(event) {
       Shelly.emitEvent("continueExecQueuedShellyCalls", {}); 
   }
   else {
-    log(LOG_INFO, "Max calls reached, pausing calls");
+    log(LOG_VERBOSE, "Max calls reached, pausing calls");
   }
 }
 
@@ -591,6 +591,8 @@ function getTripTime(current) {
  * and characteristics as provided by getTripTime() functions and applies a safety margin defined by 
  * and applies a margin as defined by "margin_factor_setting" */
 function mustShed(current) {
+  //print("overload time: " + over_load_time );
+  //print("overrun_cnt :" + overrun_cnt )
   if (current_restriction_setting != -1 && current > current_restriction_setting) {
     log(LOG_INFO, "The total curret exceeds northbound ordered current restriction " + 
         current + " A > " + current_restriction_setting + "A");
@@ -609,7 +611,6 @@ function mustShed(current) {
         " seconds, shedding will start in " + current_trip_time/margin_factor_setting  + " seconds");
   }
   else over_load_time += scan_interval * (overrun_cnt + 1);
-  //print("ocerload time: " + over_load_time );
   if (current_trip_time < min_trip_time) {
     min_trip_time = current_trip_time;
     log(LOG_INFO, "Fuse overload escalation, now at " + current + " A, it will trip in " +
@@ -646,8 +647,8 @@ function canLoad(current) {
   }
   if (cool_down_time_remaining <= scan_interval * (overrun_cnt + 1)) {
     if(cool_down_time_remaining != -1) {
-      log(LOG_INFO, "The fuse that was previously overloaded with " + current + 
-                " A has been cooled down for further loading");
+      log(LOG_INFO, "The fuse that was previously overloaded with " + 
+                "has been cooled down for further loading");
     }
     cool_down_time_remaining = -1;
     return true;
@@ -743,7 +744,7 @@ function turnCallBack(result, error_code, error_message, idx) {
   if (error_code != 0);
     log(LOG_ERROR, "failed to operate switch " + idx + "Error: " + error_message);
     // TBD: currently we don't have any retry logic
-  else if 
+  else
     log(LOG_INFO, "switch " + idx + " operated successfully");
 }
 
@@ -937,19 +938,29 @@ function scanPower() {
     log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
   }
   let must_shed = mustShed(total);
+  //print("mustShed: " + must_shed);
+
   let can_load = canLoad(total);
+  //print("canLoad: " + can_load);
   if (must_shed) { //CHECK Boundaries
     direction = "shedding";
-    print("Shedding....");
+    //print(1);
+    //print("Shedding....");
     time_to_test_loading = 0;
   }
   else if (idx_next_to_toggle_off && can_load && total + 
            last_known_current[idx_next_to_toggle_off - 1] < fuse_rating_setting) {
-    if (!current_restriction_setting || total + 
-        last_known_current[idx_next_to_toggle_off - 1] < current_restriction_setting)
-    direction = "loading";
+      //print(2);
+      direction = "loading";
   }
-  else direction = "coasting";
+  else {
+    direction = "coasting";
+    //print(3);
+  }
+  //print("Direction: " + direction);
+  //print("Next to toggle: " + idx_next_to_toggle_off); 
+  //print("Total: " + total);
+  //if (idx_next_to_toggle_off ) print("lastKnownCurrent[" + (idx_next_to_toggle_off - 1) + "]: " + last_known_current[idx_next_to_toggle_off - 1]);
   if (direction == "loading") {
     print("Loading....");
     coasting_report_cnt = 0;
