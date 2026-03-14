@@ -408,8 +408,8 @@ function shedderEndPoint(req, res) {
     case "getTripTime":
       let trip_current = Number(key_values.getTripTime);
       if (def(trip_current)){
-        res.body = JSON.stringify(tripData:{current:trip_current, tripTime:getTripTime(trip_current),
-                                  shedMarginFactor:margin_factor_setting});
+        res.body = JSON.stringify({tripData:{current:trip_current, tripTime:getTripTime(trip_current),
+                                  shedMarginFactor:margin_factor_setting}});
         res.code = 200;
       }
       else
@@ -585,12 +585,12 @@ function getTripTime(current) {
 }
 
 
-/* must_shedd(current();
+/* mustShed(current();
  * Checks if the next channel in priority order must be turned off in order to avoid that the group 
  * fuse trips. This function takes into account the tripping time according to the fuse rating- 
  * and characteristics as provided by getTripTime() functions and applies a safety margin defined by 
  * and applies a margin as defined by "margin_factor_setting" */
-function must_shedd(current) {
+function mustShed(current) {
   if (current_restriction_setting != -1 && current > current_restriction_setting) {
     log(LOG_INFO, "The total curret exceeds northbound ordered current restriction " + 
         current + " A > " + current_restriction_setting + "A");
@@ -626,11 +626,11 @@ function must_shedd(current) {
 }
 
 
-/* function can_load(current);
+/* function canLoad(current);
  * Provides an indication whether the group fuse can take more load even if so little.
  * After an overload situation, the fuse is not allowed to take more load until the 
  * fuse has cooled down for "cool_down_time_setting" seconds. */
-function can_load(current) {return true;}/*
+function canLoad(current) {
   if (current_restriction_setting != -1 && current * (1 + current_restriction_hysteresis_setting) > 
       current_restriction_setting) {
     return false;
@@ -641,20 +641,21 @@ function can_load(current) {return true;}/*
   }
   if (cool_down_time_remaining == cool_down_time_setting) {
     log(LOG_INFO, "The fuse that was previously overloaded, is now at " + current + 
-                  " A, but needs to cooled down for " + cool_down_time_setting +
+                  " A, but needs to cool down for " + cool_down_time_remaining +
                   " seconds before any further loading is allowed");
-    return false;
   }
   if (cool_down_time_remaining <= scan_interval * (overrun_cnt + 1)) {
-    log(LOG_INFO, "The fuse that was previously overloaded with " + current + 
-                  " A has been cooled down for further loading");
+    if(cool_down_time_remaining != -1) {
+      log(LOG_INFO, "The fuse that was previously overloaded with " + current + 
+                " A has been cooled down for further loading");
+    }
     cool_down_time_remaining = -1;
     return true;
   }
-  cool_down_time -= scan_interval * (overrun_cnt + 1);
+  cool_down_time_remaining -= scan_interval * (overrun_cnt + 1);
   return false;
 }
-*/
+
 
 /* function get_current();
  * Provides the aggregated current through the group fuse to be protected, I.e. the sum of the 
@@ -935,12 +936,14 @@ function scanPower() {
     time_to_test_loading = 0;
     log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
   }
-  if (must_shedd(total)) { //CHECK Boundaries
+  let must_shed = mustShed(total);
+  let can_load = canLoad(total);
+  if (must_shed) { //CHECK Boundaries
     direction = "shedding";
     print("Shedding....");
     time_to_test_loading = 0;
   }
-  else if (idx_next_to_toggle_off && can_load(total) && total + 
+  else if (idx_next_to_toggle_off && can_load && total + 
            last_known_current[idx_next_to_toggle_off - 1] < fuse_rating_setting) {
     if (!current_restriction_setting || total + 
         last_known_current[idx_next_to_toggle_off - 1] < current_restriction_setting)
