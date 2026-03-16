@@ -38,18 +38,21 @@ To observe the operations various logging-levels is defined by "LOG_LEVEL", avai
 levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL".
 
 ## Script configuration (persistant)
-This script's behaviour depends on script settings with default settings as defined in this
-script under "default settings...". The default script configurations are written to the
-shelly KVS (Key Value Store) which is persistant at the first run of the script, or after
-a factory reset of the script or the device. The default settings can be changed by changing the 
-default settings in the script (not recommended) following a script factory reset or
-(the recommended way) to persistently set script configuration through the provided KVS HTTP
-webhooks.
+This script's behaviour depends on script configuration settings with default values as defined in the
+script under "default settings...". The default script configurations are persistantly written to the
+shelly KVS (Key Value Store) at the first startup of the script, or after a factory reset of the script-
+or the device. The default settings can be changed by changing the default settings in the script
+(not recommended) following a script factory reset or (the recommended way) to persistently set script
+configuration through the provided KVS HTTP webhooks, alternatively alternatively setting the KVS store
+from the shelly local- or cloud- web-page.<br>
+CAUTION: The shelly KVS store is using a storage with limited number of writes (~100 K), limit the number
+of re-configurations to ensure adequate life-time of the device.
+
 Following script setting/Webhooks are supported (GET):
 
 **hostname_setting:**<br>
 *http://"ShellyURL"/rpc/KVS.Set?key="hostname_setting"&value=\<hostname\>*<br>
-Sets the hostname of the Shelly device, hostname is needed for overload Webhook reporting.
+Sets the hostname of the Shelly device, hostname is needed for asynchronous status Webhook reporting.
 
 **fuse_rating_setting:**<br>
 *http://"ShellyURL"/rpc/KVS.Set?key="fuse_rating_setting"&value=\<fuse rating in Amps\>*<br> 
@@ -76,7 +79,7 @@ Sets the array of channels to monitor and shed in reverse priority order (first 
 Eache element is represented by a JSON object with key:value pairs:<br>
 { addr: "localhost", gen: 2, type: "relay", id: 3, shed: true, measure: true } <br>
 
-  * **addr**: Represents the IP address of the shelly device to participate in the shedding group. If set to "localhost" the local shelly device
+  * **addr**: Defines the IP address of the shelly device to participate in the shedding group. If set to "localhost" the local shelly device
 (same as the script runs on) is addressed and synchronous calls will be used to operate/shed the channels, otherwise HTTP RPCs will be used 
 causing a latency whch may call for slightly longer "scan_interval" times (see below).
 
@@ -85,11 +88,11 @@ causing a latency whch may call for slightly longer "scan_interval" times (see b
   * **type**: Defines the shelly device type. "relay" indicates a relay that can paticipate in shedding actions, where "meter", "switch", etc.
 potentially can participate in providing current measurement to be used by the shedding group.
 
-  * **id**: Provides the id/channel of the shelly device (Eg. 4PMPro has four 0-3).
+  * **id**: Defines the id/channel of the shelly device (Eg. 4PMPro has four 0-3).
 
-  * **shed**: Indicates wether the channel is to be used for shedding or not <true | false>.
+  * **shed**: Defines wether the channel is to be used for shedding or not <true | false>.
 
-  * **measure**: Indicates weather the channel is to be used for group fuse current measurement <true | false>
+  * **measure**: Defines weather the channel is to be used for group fuse current measurement <true | false>
 
 Obviously, if both "shed" and "measure" is set to false, the channel is redundant and will in no way participate in the shedding group.
 
@@ -107,19 +110,16 @@ While a device that runs this script involving only autonomous operations (not i
 a system involving other devices may require significantly higher intervals to acommodate for communication resource requirements, latencies,
 and otherwise. 
 
-**simulation:**<br> //SHould this really be part of KVS
+**simulation:**<br> //SHould this really be part of KVS - TO BE REMOVED IN THE CODE
 *http://"ShellyURL"/rpc/KVS.Set?key="simulated_current"&value=\<true|false\>*<br> 
-Simulation mode. When simulation mode is set, the currents are not measured from the physical
-channels, but are set by the "simulated_current" webhook as described below. In simulation mode
-physical relays are not operated but the intended relay operations can be observed by log-entries
-in the Shelly console.
+......
 
-**simulated_current:**<br> //Should not be part of KVS
+**simulated_current:**<br> //Should not be part of KVS - TO BE REMOVED IN THE CODE
 *http://"ShellyURL"/rpc/KVS.Set?key="simulated_current"&value=\<\[Chan1_current, Chan2_current,
 Chan3_current, Chan4_current, Chan5_current, ...\]\>*<br>
 Simulated current settings per channel.
 
-**current_restriction_setting:**<br> //Should not be part of KVS
+**current_restriction_setting:**<br> //Should not be part of KVS TOP BE REMOVED IN THE CODE
 *http://"ShellyURL"/rpc/KVS.Set?key="current_restriction_setting"&value=\<maxCurrent\>*<br>
 A northbound current shedder may limit the allowed drawn current for this current shedder.
 In contrast to group fuse overloading, current restriction leads to instant shedding when needed.
@@ -132,24 +132,67 @@ load after a channel reconnection is expected to be less than
 
 **overload_webhook_uri_setting:**<br>
 *http://"ShellyURL"/rpc/KVS.Set?key="let overload_webhook_uri_setting"&value=\<"WebhookURI"\>*<br>
-Sets the URI endpoint for overload event Webhooks. 
+Sets the URI endpoint for overload event Webhooks (For the webhook format see ....). 
 
 The webhook JSON data provided are:<br> 
-*{hostname: hostname_setting, state: "shedding|loading|coasting", current: "current [A]", next_to_discconect: "current channel"}*<br>
+*{hostname: hostname_setting, overload: true|false, current_restriction_state:true|false, current_restriction: "current[A], shedding_state: "shedding|loading|coasting", group_current: "current [A]",
+channel_currents:[ch1,ch2,ch3,ch4,...[A]], next_to_discconect: "next channel to ched"}*<br>
 
 **log_level_setting:**<br>
 *http://"ShellyURL"/rpc/KVS.Set?key="log_level_setting"&value=<"LOG_CRITICAL" | "LOG_ERROR" | "LOG_WARN" | "LOG_INFO" | "LOG_VERBOSE">*<br>
 Sets log level - logging happens to the Shelly console.
 
-**factory_reset_to_default:**<br> //Shall not be a KVS entry
+**factory_reset_to_default:**<br> //Shall not be a KVS entry - REMOVE FROM CODE
 *http://"ShellyURL"/rpc/KVS.Set?key="factory_reset_to_default"*<br>
 Resets and reboots the shedder script device to factory default (default settings as defined in the script).
 
 ## Script interaction APIs (non persistant)
-This shedder script provides HTTP APIs that sets shedder script properties, and that retreives shedder information as well as HTTP call-backs
-which asynchronously reports important events to a pre-defined HTTP end-point.
+This shedder script provides non persistant run-time HTTP APIs that enables interaction with the shedder script
+and that retreives shedder information as well as asynchronous HTTP Webhook call-backs reporting important events
+to a pre-defined HTTP end-point.
 
 ### Setting non persistant properties through HTTP APIs
+
+**Factory reset:**<br>
+*http://"ShellyURL"/rpc/KVS.Set?key="factory_reset_to_default"*<br>
+Resets and restarts the shedder script to factory default.  Default settings as defined in the script will persistantly applied to the KVS store and any custom configurations needs to be applied to the Shelly KVS store as described under
+the "Script configuration (persistant)" section above. This method does not reset the shelly device as a whole to factory
+default, but only the shedder script it self.
+
+**Restart**<br>
+*http://"ShellyURL"/rpc/KVS.Set?key="factory_reset_to_default"*<br>
+Restarts the shedding script, all persistant configurations remains - but the the internal state machine is re-started,
+meaning that all shedding events-/states-, over-load-, cooling-, current-restriction-, etc. are reset.
+
+Response body: A textual description of the result
+
+
+**simulation**<br>
+*http://"ShellyURL"/script/<scriptId>/shedder?simulation=<true|false>*<br>
+Sets or un-sets Shedder simulation mode. When simulation mode is set, the currents are not measured from the physical
+channels, but are set by the "simulated_current" API as described below. In simulation mode
+physical relays are not operated but the intended relay operations can be observed by log-entries
+in the Shelly console, or by scanning the ....., or by monitoring the .... web-hook event.
+
+Response body: A textual description of the result
+
+
+**simulation**<br>
+*http://"ShellyURL"/script/<scriptId>/shedder?simulation=<true|false>*<br>
+
+Response body: A textual description of the result
+
+**setSimulatedCurrent**<br>
+*http://"ShellyURL"/script/<scriptId>/shedder?setSimulatedCurrent=<Ch1_current, Ch2_current,
+Ch3_current, Ch4_current, Chan5_current, ...[A]]>*<br>
+
+Response body: A textual description of the result
+
+
+
+
+
+simulation
 
 ### Requesting status through HTTP APIs
 
