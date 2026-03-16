@@ -71,7 +71,7 @@ rellevant when the fuse was temporarilly reloaded during a time-period shorter t
 overloaded before the "cool_down_time_setting" timer has expired a shedding event will immediately comence.
 
 **first_to_last_to_shed:**<br>
-*http://"ShellyURL"/rpc/KVS.Set?key="simulated_current"&value=\<["Ch1,Ch2,Ch3,Ch4,Ch5, ...]\>*<br> 
+*http://"ShellyURL"/rpc/KVS.Set?key="first_to_last_to_shed"&value=\<["Ch1,Ch2,Ch3,Ch4,Ch5, ...]\>*<br> 
 Sets the array of channels to monitor and shed in reverse priority order (first element represents the channel with the least priority).
 Eache element is represented by a JSON object with key:value pairs:<br>
 { addr: "localhost", gen: 2, type: "relay", id: 3, shed: true, measure: true } <br>
