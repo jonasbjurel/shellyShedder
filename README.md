@@ -290,7 +290,7 @@ to normal priority principles. To avoid oscilations a
 "current_restriction_hysteresis_setting" hysteresis factor is applied before the
 re-loading of channels may happen. **A value of 0.1 to 0.2 is recommended**
 
-##C ontious integration
+## Contious integration
 The shedder script comes with an extensive automated verification script - "shedder.js" that aims to verify all the aspects of the shedder script in the simulation mode. The real current measurement and
 relay operations are currently not verified, but needs to be verified separately.
 
