@@ -7,13 +7,14 @@ A general shelly load shedding script
 License: Apache 2 
 
 ## Description: 
-This script maintains a load that prevents a single phase group fuse to trip and provides
-methods for northbound shedding systems to limit the current load.
+This current shedding script maintains a load that prevents a single phase group fuse to trip-, 
+and provides methods for northbound shedding systems to limit the current load.
 Channels defined in "first_to_last_to_shed" are shedded one after one in
-priority order. Shedding decisions are based on the "fuse_rating_setting",
-"fuse_char_setting", "margin_factor_setting" and "current_restriction_setting". 
+priority order. Shedding decisions are based on the group fuse_ ating setting,
+the group fuse characteristics setting (B,C,D,K,Z), margin factor" and northbound 
+requested current restrictions. 
 Shedding decisions are not only based on over-current, but on the fuse characteristics
-for expected trip time or north-bound system set limitations, shedding 
+for expected trip time or north-bound system set limitatations/restrictions, shedding 
 happens at the time for which the fuse would trip divided by the 
 "margin_factor_setting", or instantaneously if the current exceeds north-bound
 limitations set by "current_restriction_setting".
@@ -299,3 +300,9 @@ relay operations are currently not verified, but needs to be verified separately
 ##Contious deployment
 There is currently no automated script deplooyment, at current only agestone copy- and paste mechanisms from github to the actual shelly device exists. The plan is to be able to provide mechanisms to pull  script repos/branches/releases from github to the shelly device in a seamless way.
 
+##Supported use cases:
+This shedder script provide means to support multiple use-cases one by one, or in combination.
+###Protecting a single phase group fuse from over-current
+###Protecting a single phase mater fuse from over-current
+###Limiting a single phase current draw from exceeding current loads causing penalties as defined by the 
+grid-provider.
