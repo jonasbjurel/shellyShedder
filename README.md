@@ -11,7 +11,7 @@ This current shedding script maintains a load that prevents a single phase group
 and provides methods for northbound shedding systems to limit the current load.
 Channels defined in "first_to_last_to_shed" are shedded one after one in
 priority order. Shedding decisions are based on the group fuse_rating setting,
-the group fuse characteristics setting (B,C,D,K,Z), margin factor" and northbound 
+the group fuse characteristics setting (B,C,D,K,Z), the margin factor, and northbound 
 requested current restrictions. 
 Shedding decisions are not only based on over-current, but on the fuse characteristics
 for expected trip time or north-bound system set limitatations/restrictions, shedding 
