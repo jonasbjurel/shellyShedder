@@ -290,16 +290,16 @@ to normal priority principles. To avoid oscilations a
 "current_restriction_hysteresis_setting" hysteresis factor is applied before the
 re-loading of channels may happen. **A value of 0.1 to 0.2 is recommended**
 
-##Contious integration
+##C ontious integration
 The shedder script comes with an extensive automated verification script - "shedder.js" that aims to verify all the aspects of the shedder script in the simulation mode. The real current measurement and
 relay operations are currently not verified, but needs to be verified separately.
 
-##Contious deployment
+## Contious deployment
 There is currently no automated script deplooyment, at current only agestone copy- and paste mechanisms from github to the actual shelly device exists. The plan is to be able to provide mechanisms to pull  script repos/branches/releases from github to the shelly device in a seamless way.
 
-##Supported use cases:
+## Supported use cases:
 This shedder script provide means to support multiple use-cases one by one, or in combination.
-###Protecting a single phase group fuse from over-current
-###Protecting a single phase mater fuse from over-current
-###Limiting a single phase current draw from exceeding current loads causing penalties as defined by the 
+### Protecting a single phase group fuse from over-current
+### Protecting a single phase mater fuse from over-current
+### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the 
 grid-provider.
