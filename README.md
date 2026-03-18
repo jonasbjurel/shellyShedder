@@ -38,6 +38,13 @@ log level needs to be set to "LOG_INFO" to observe the operations in simulation 
 To observe the operations various logging-levels is defined by "LOG_LEVEL", available log 
 levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL". The logs are available through the local Shelly web-server or through the Shelly cloud service.
 
+## Supported use cases:
+This shedder script provide means to support multiple use-cases one by one, or in combination.
+### Protecting a single phase group fuse from over-current in atonomous mode.
+### Protecting a single phase mater fuse from over-current
+### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the 
+grid-provider.
+
 ## Script configuration (persistant)
 This script's behaviour depends on script configuration settings with default values as defined in the
 script under "default settings...". The default script configurations are persistantly written to the
@@ -49,11 +56,11 @@ of programatically initiated re-configurations to ensure adequate life-time of t
 Following script setting/HTTP APIs are supported (GET):
 
 **Hostname:**<br>
-*http://"ShellyURL"/rpc/KVS.Set?key="hostname_setting"&value=\<hostname\>*<br>
+*http://"ShellyURL"/rpc/KVS.Set?key="hostname_setting"&value=<hostname>*<br>
 Sets the hostname of the Shelly device, hostname is needed for asynchronous status Webhook reporting.
 
 **Group fuse rating:**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="fuse_rating_setting"&value=\<fuse rating in Amps\>*<br> 
+*http://<"ShellyURL">/rpc/KVS.Set?key="fuse_rating_setting"&value=<fuse_rating [A]>*<br> 
 Sets the group fuse rate rating.
 
 **Group fuse characteristics:**<br> 
@@ -61,24 +68,24 @@ Sets the group fuse rate rating.
 Sets the group fuse characteristics.
 
 **Shedding margin settings:**<br> 
-*http://<"ShellyURL">/rpc/KVS.Set?key="margin_factor_setting"&value=\<margin_factor\>*<br>
+*http://<"ShellyURL">/rpc/KVS.Set?key="margin_factor_setting"&value=<margin_factor>*<br>
 Sets the margin factor from for which the theoretical group fuse trip time is divided by to determin the actual shedding time.
 
 **Group fuse cool down time:**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="cool_down_time_setting"&value=\<margin_factor\>*<br>
-Sets the group fuse cool down time in secoonds applied after fuse have been overloaded until it can be
-reloaded. This time is applied after a shedding due to overload happened before it may reload the fuse. But it is also
-rellevant when the fuse was temporarilly reloaded during a time-period shorter than the shedding time, if the fuse is again
+*http://<"ShellyURL">/rpc/KVS.Set?key="cool_down_time_setting"&value=<margin_fator>*<br>
+Sets the group fuse cool down time in secoonds applied after the group fuse have been overloaded until it can be
+re-loaded. This time is applied after shedding due to overload happened before it may re-load the fuse, but it is also
+rellevant when the fuse was temporarilly re-loaded during a time-period shorter than the shedding time, if the fuse is again
 overloaded before the "cool_down_time_setting" timer has expired a shedding event will immediately comence.
 
 **Shedding group channel definition (first_to_last_to_shed):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="first_to_last_to_shed"&value=\<["Ch1,Ch2,Ch3,Ch4,Ch5, ...]\>*<br> 
+*http://<"ShellyURL">/rpc/KVS.Set?key="first_to_last_to_shed"&value=<["Ch1,Ch2,Ch3,Ch4,Ch5, ...]>*<br> 
 Sets the array of channels to monitor and shed in reverse priority order (first element represents the channel with the least priority).
-Eache element is represented by a JSON object with key:value pairs:<br>
+Each element is represented by a JSON object with key:value pairs:<br>
 {addr: <URI|IPaddress|loacalhost>, gen:<shelly_generation>, type: <"relay"|switch|...>, id: <channel_id>, shed: <true|false>, measure: <true|false> <br>
 
 * **addr**: Defines the IP address of the shelly device to participate in the shedding group. If set to "localhost" the local shelly device (same as the script runs on) is addressed and synchronous calls will be used to operate/shed the channels, otherwise HTTP RPCs will be used 
-causing a latency which introduces latencies and may call for slightly longer "scan_interval" times (see below).
+causing  latencies and may call for slightly longer "scan_interval" times (see below).
 
 * **gen**: Defines the shelly device generation.
 
@@ -96,26 +103,26 @@ Obviously, if both "shed" and "measure" is set to false, the channel is redundan
 **Test loading time:**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="time_to_test_loading_setting"&value=\<time_to_test_loading\>*<br>
 Sets Time_to_test_loading, if a shedded channel had a current value before it was shedded that seemingly does not fit the group fuse budget,
-the channel will be reconnected after this time. This is to avoid situations where the las known current for some reason was so high that it will (almost) never again fit the group fuse value.
+the channel will be reconnected after this time. This is to avoid situations where the last known current for some reason was so high that it will (almost) never again fit the group fuse value.
 
 **Script scaning interval:**<br>
-*http:<//"ShellyURL">/rpc/KVS.Set?key="scan_interval"&value=\<scan_interval\>*<br>
+*http:<//"ShellyURL">/rpc/KVS.Set?key="scan_interval"&value=<scan_interval>*<br>
 Sets the scripts scanning interval - meaning the response time for current changes, shedding events, timer-resolution, etc.
 While a device that runs this script involving only autonomous operations (not involving other devices) could be set as low as 0.2 seconds,
 a system involving other devices may require significantly higher intervals to acommodate for communication resource requirements, latencies,
 and otherwise. 
 
 **simulation (DEPRECATED):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="simulated_current"&value=\<true|false\>*<br> 
+*http://<"ShellyURL">/rpc/KVS.Set?key="simulated_current"&value=<true|false>*<br> 
 ......
 
 **Set simulation current (DEPRECATED):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="simulated_current"&value=\<\[Chan1_current, Chan2_current,
-Chan3_current, Chan4_current, Chan5_current, ...\]\>*<br>
+*http://<"ShellyURL">/rpc/KVS.Set?key="simulated_current"&value=<[Chan1_current, Chan2_current,
+Chan3_current, Chan4_current, Chan5_current, ...]>*<br>
 Simulated current settings per channel.
 
 **Current restriction setting (DEPRECATED):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="current_restriction_setting"&value=\<maxCurrent\>*<br>
+*http://<"ShellyURL">/rpc/KVS.Set?key="current_restriction_setting"&value=<maxCurrent>*<br>
 A northbound current shedder may limit the allowed drawn current for this current shedder.
 In contrast to group fuse overloading, current restriction leads to instant shedding when needed.
 
@@ -129,26 +136,25 @@ When current restriction from a north bound shedder have caused shedding, re-loa
 "(1-current_restriction_hysteresis_setting) * current_restriction_setting".
 
 **Status webhook end-point(CHANGED):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="status_webhook_uri_setting"&value=\<"WebhookURI"\>*<br>
-Sets the URI endpoint for the shedder status event Webhooks (For the webhook format see ....). 
+*http://<"ShellyURL">/rpc/KVS.Set?key="status_webhook_uri_setting"&value=<"WebhookURI">*<br>
+Sets the URI endpoint for the shedder status event Webhooks. 
 
 **Log-level:**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="log_level_setting"&value=<"LOG_CRITICAL" | "LOG_ERROR" | "LOG_WARN" | "LOG_INFO" | "LOG_VERBOSE">*<br>
-Sets log level - logging happens to the Shelly console.
+Sets log level.
 
 **factory_reset_to_default(DEPRICATED):**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="factory_reset_to_default"*<br>
 
 ## Script interaction APIs (non persistant)
-This shedder script provides non persistant run-time HTTP APIs that enables interaction with the shedder script and that retreives shedder information as well as asynchronous HTTP Webhook call-backs reporting important events to a pre-defined HTTP end-point.
+This shedder script provides non persistant run-time HTTP APIs that enables interaction with the shedder script and that retreives shedder information as well as asynchronous HTTP Webhook call-backs reporting important events to a pre-defined HTTP end-point. This set of APIs require that the Shelly script Id is part of the request URL. The script ID is stored in KVS and can be fetched through the "http://<"ShellyURL">/rpc/KVS.Get?key=<shedder_script_id>".
 
 ### Setting non persistant properties through HTTP APIs
 
 **Factory reset(NEW):**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?factory_reset_to_default*<br>
-Resets and restarts the shedder script to factory default.  Default settings as defined in the script will persistantly applied to the KVS store and any custom configurations needs to be applied to the Shelly KVS store as described under
-the "Script configuration (persistant)" section above. This method does not reset the shelly device as a whole to factory
-default, but only the shedder script it self.
+Resets and restarts the shedder script to factory default. Default settings as defined in the script will persistantly be applied to the KVS store and any custom configurations needs to be applied to the Shelly KVS store as described under
+the "Script configuration (persistant)" section above. This method does not reset the shelly device as a whole to factory default, but only the shedder script it self.
 
 Response body: None
 
@@ -163,10 +169,10 @@ Response body: None
 A northbound current shedder system may limit the allowed drawn current for this current shedder group.
 In contrast to group fuse overloading, current restriction leads to instant shedding when needed.
 The "validPeriod" sets the time period in seconds for which the shedder group should adhere to the
-current restriction. If the current north-bound curren shedder system has not contacted the shedder group with new instructions within this time the restriction is ceased.
+current restriction, if the current north-bound curren shedder system has not contacted the shedder group with new instructions within this time the restriction is ceased.
 
 Response body: A JSON object<br>
-{currentRestriction:{result: <"OK"|"NOK", maximumRestriction:<maximum_current_restriction>}
+{currentRestriction:{result: <"OK"|"NOK">, maximumRestriction:<maximum_current_restriction>}
 
 * **result** - Indicates if the restriction will be fullfilled in its entire or only partially.
 * **maximumRestriction** - Indicates the curren lowest current load that a restriction could accomplish.
@@ -174,20 +180,21 @@ Response body: A JSON object<br>
 
 **Simulation**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?simulation=<true|false>*<br>
-Sets or un-sets Shedder simulation mode. When simulation mode is set, the currents are not measured
-from the physical channels, but are set by the "simulated_current" API as described below. 
+Sets or un-sets the shedder script simulation mode. When simulation mode is set, the currents are not measured from the physical channels, but are set by the "simulated_current" API as described below. 
 In simulation mode the physical relays are not operated but the intended relay operations can be
-observed by log-entries in the Shelly console, or by scanning the the switch stae..., or by
-monitoring the .... overload web-hook event.
+observed by log-entries in the Shelly console, or by scanning the the switch state, or by
+monitoring the status web-hook event.
 
-Response body: A textual description of the result.
+Response body a JSON object<br>
+{simulation:true|false}
 
 **Set simulated current**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?setSimulatedCurrent=<Ch1_current, Ch2_current,
-Ch3_current, Ch4_current, Chan5_current, ...[A]]>*<br>
+*http://"ShellyURL"/script/<scriptId>/shedder?setSimulatedCurrent=<Ch0_current, Ch1_current,
+Ch2_current, Ch3_current, ...[A]]>*<br>
 Sets the simulated current for each of the shedder channels.
 
-Response body: A textual description of the result
+Response body: A JSON object<br>
+{simulatedCurrent:[ch0_curr, ch1_curr, ch2_curr, ch3_curr,...]}
 
 ### Requesting status through HTTP APIs
 **Get current status**<br>
@@ -242,12 +249,12 @@ Each vector element represents a channel in the shedding group, the kv structure
 * **priority** - Providing the shedding priority of the shedder channel, in practice the priority
 follows the element's order in the vector (0:highest priority - N:lowest priority) 
 
-### Asynchronous Status Webhook events (NEW).
+### Asynchronous status Webhook events (NEW).
 When the shedder group status changes (shedding/loading) a status webhook can be sent to a HTTP
 end-point providing the end-point is defined in the shedder script "status_webhook_uri_setting" configuration.
 The web-hook is sent whenever the status is changed, as well as periodically at every minute. 
 
-The webhook provides is sent to the configured target end-point as a HTTP PUT request:<br>
+The webhook is sent to the configured target end-point as a HTTP PUT request:<br>
 *http://<targetEndpointURI>/shedder/<hostname>/status*<br>
 
 Request body: A JSON object:<br>
@@ -291,15 +298,8 @@ to normal priority principles. To avoid oscilations a
 re-loading of channels may happen. **A value of 0.1 to 0.2 is recommended**
 
 ## Contious integration
-The shedder script comes with an extensive automated verification script - "shedder.js" that aims to verify all the aspects of the shedder script in the simulation mode. The real current measurement and
-relay operations are currently not verified, but needs to be verified separately.
+The shedder script comes with an extensive automated verification script - "shedder.js" that aims to verify all the aspects of the shedder script in simulated mode. The real current measurement and
+relay operations are currently not verified, but needs to be verified manually.
 
 ## Contious deployment
-There is currently no automated script deplooyment, at current only agestone copy- and paste mechanisms from github to the actual shelly device exists. The plan is to be able to provide mechanisms to pull  script repos/branches/releases from github to the shelly device in a seamless way.
-
-## Supported use cases:
-This shedder script provide means to support multiple use-cases one by one, or in combination.
-### Protecting a single phase group fuse from over-current
-### Protecting a single phase mater fuse from over-current
-### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the 
-grid-provider.
+There is currently no automated script deployment, at current only agestone copy- and paste mechanisms from github to the actual shelly device exists. The plan is to be able to provide mechanisms to pull  script repos/branches/releases from github to the shelly device in a seamless way.
