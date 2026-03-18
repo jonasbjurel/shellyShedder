@@ -36,7 +36,7 @@ but the expected switch behaviour can be observed as log entries in the console;
 log level needs to be set to "LOG_INFO" to observe the operations in simulation mode.
 
 To observe the operations various logging-levels is defined by "LOG_LEVEL", available log 
-levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL". The logs are available through th local Shelly web-server or through the Shelly cloud service.
+levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL". The logs are available through the local Shelly web-server or through the Shelly cloud service.
 
 ## Script configuration (persistant)
 This script's behaviour depends on script configuration settings with default values as defined in the
