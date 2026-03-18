@@ -42,7 +42,7 @@ levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL". 
 This script's behaviour depends on script configuration settings with default values as defined in the
 script under "default settings...". The default script configurations are persistantly written to the
 shelly KVS (Key Value Store) at the first startup of the script, or after a factory reset of the script/
-or the device. The default settings can be changed by through the provided Shelly KVS HTTP APIs, or alternatively setting the KVS store from the shelly local- or cloud- web-page.<br>
+or the device. The default settings can be changed through the provided Shelly KVS HTTP APIs, or alternatively setting the KVS store from the shelly local- or cloud- web-page.<br>
 CAUTION: The shelly KVS store is using a storage with limited number of writes (~100 K), limit the number
 of programatically initiated re-configurations to ensure adequate life-time of the device.
 
