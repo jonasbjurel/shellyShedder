@@ -36,7 +36,8 @@ but the expected switch behaviour can be observed as log entries in the console;
 log level needs to be set to "LOG_INFO" to observe the operations in simulation mode.
 
 To observe the operations various logging-levels is defined by "LOG_LEVEL", available log 
-levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL". The logs are available through the local Shelly web-server or through the Shelly cloud service.
+levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL".
+The logs are available through the local Shelly web-server or through the Shelly cloud service.
 
 ## Supported use cases:
 This shedder script provide means to support multiple use-cases one by one, or in combination.
@@ -49,7 +50,8 @@ grid-provider.
 This script's behaviour depends on script configuration settings with default values as defined in the
 script under "default settings...". The default script configurations are persistantly written to the
 shelly KVS (Key Value Store) at the first startup of the script, or after a factory reset of the script/
-or the device. The default settings can be changed through the provided Shelly KVS HTTP APIs, or alternatively setting the KVS store from the shelly local- or cloud- web-page.<br>
+or the device. The default settings can be changed through the provided Shelly KVS HTTP APIs,
+or alternatively setting the KVS store from the shelly local- or cloud- web-page.<br>
 CAUTION: The shelly KVS store is using a storage with limited number of writes (~100 K), limit the number
 of programatically initiated re-configurations to ensure adequate life-time of the device.
 
@@ -69,7 +71,8 @@ Sets the group fuse characteristics.
 
 **Shedding margin settings:**<br> 
 *http://<"ShellyURL">/rpc/KVS.Set?key="margin_factor_setting"&value=<margin_factor>*<br>
-Sets the margin factor from for which the theoretical group fuse trip time is divided by to determin the actual shedding time.
+Sets the margin factor from for which the theoretical group fuse trip time is divided by 
+to determin the actual shedding time.
 
 **Group fuse cool down time:**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="cool_down_time_setting"&value=<margin_fator>*<br>
@@ -79,7 +82,7 @@ rellevant when the fuse was temporarilly re-loaded during a time-period shorter 
 overloaded before the "cool_down_time_setting" timer has expired a shedding event will immediately comence.
 
 **Shedding group channel definition (first_to_last_to_shed):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="first_to_last_to_shed"&value=<["Ch1,Ch2,Ch3,Ch4,Ch5, ...]>*<br> 
+*http://<"ShellyURL">/rpc/KVS.Set?key="first_to_last_to_shed"&value=<["ch0,ch1,ch2,ch3, ...]>*<br> 
 Sets the array of channels to monitor and shed in reverse priority order (first element represents the channel with the least priority).
 Each element is represented by a JSON object with key:value pairs:<br>
 {addr: <URI|IPaddress|loacalhost>, gen:<shelly_generation>, type: <"relay"|switch|...>, id: <channel_id>, shed: <true|false>, measure: <true|false> <br>
@@ -128,11 +131,13 @@ In contrast to group fuse overloading, current restriction leads to instant shed
 
 **Maximum current restriction(NEW):**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="max_current_restriction_setting"&value=<max_current_restriction>*<br>
-The maximum current restriction a north bound shedder system can impose on the shedding group, eg. the minimum current it can ask the shedding group to adhere to.
+The maximum current restriction a north bound shedder system can impose on the shedding group, eg. 
+the minimum current it can ask the shedding group to adhere to.
 
 **Current restriction hysteresis:**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="current_restriction_hysteresis_setting"&value=<restriction_current_loading_factor>*<br>
-When current restriction from a north bound shedder have caused shedding, re-loading happens when the expected current load after a channel reconnection is expected to be less than:
+When current restriction from a north bound shedder have caused shedding, re-loading happens when the
+expected current load after a channel reconnection is expected to be less than:
 "(1-current_restriction_hysteresis_setting) * current_restriction_setting".
 
 **Status webhook end-point(CHANGED):**<br>
