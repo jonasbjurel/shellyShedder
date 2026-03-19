@@ -39,13 +39,18 @@ To observe the operations various logging-levels is defined by "LOG_LEVEL", avai
 levels are: "LOG_VERBOSE", "LOG_INFO", "LOG_WARN", "LOG_ERROR", "LOG_CRITICAL".
 The logs are available through the local Shelly web-server or through the Shelly cloud service.
 
-## Supported use cases:
+## Purpose, principles and use cases:
+The purpose of this Shedding script is to provide means to control current drawing through group fuses, grid termination points, etc., such that unnecessary fuse shedding happens or excessive grid cost is charged for due to high current draw, and even control the power draw at forcasted high cost periods.
+
 This shedder script provide means to support multiple use-cases one by one, or in combination.
-The script can work in atonomous shedding mode, measuring and shedding channels on the local shelly device it is tunning on. The script can also control a distributed setup, controling a set of remote shelly devices all participating in a shedding group. Finally the script may participate in a larger loadbalancing setup aimed to control the grid current draw such that unnecessarry current peaks occur - potentially resulting penalty fees. 
+The script can work in atonomous shedding mode, measuring and shedding channels on the local shelly device it is running on. The script can also control a distributed setup, controling a set of remote shelly devices all participating in a shedding group. Finally the script may participate in a larger loadbalancing setup aimed to control the grid current and power draw such that unnecessarry current peaks occur - potentially resulting penalty fees, or excessive energy bills at high cost periods.
+
+The shedder script manages a single phase only, 3 separate script instances can be deployed to manage a 3 phase system. If so, there is no coordination between the script instances and the applicability to manage 2-, or 3-phase loads is questionable. It is not recommended to manage 3-phase motor loads at all since it could destroy the motor or trip the motor protection (3-phase pumps, 3-phase heat-pumps, etc.)
+
 ### Protecting a single phase group fuse from tripping in atonomous mode.
 There are many occations where a group fuse can not be dimentioned for all the potential loads connected to it, this can because the feed cabling is not dimentioned for higher fuse ratings, because of the cost of higher rated grid fuses, or otherwise. Shedding is a technique that controls the current through a fuse by disconnecting low priority loads when needed to not trip the fuse - this shedder script does exactly that. The shedder script provides several modes of operation of which the atonomous mode is the simplest-, most robust/reliable-, and with the quickest response time.
 
-<img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Atonomous.png" width="50%">
+<img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Atonomous.png" width="75%">
 
 *Figure 1. Shelly shedding script in atonomus shedding configuration.*<br><br>
 In atonomous mode the script controls the relays on the same shelly device it is running on. Apart from configuration and status updates there is no requirement on network connectivity (Ethernet/WiFi), the basic functions remain intact even if the connectivity fails. Further more, all current measurements and relay control happens locally with minimum latency resulting in prompt respone times for current measurement and relay control. Any Shelly device of generation 2 and higher, carying one or more relays with current measure capabilities can be used. Each of the shelly relay channels is configured with it's shedding priority, wether it is allowed to be shedded, wether it should be part of the fuse current measurement, etc. In the example given in *Figure 1* the scripts runs on a Shelly device with 4 relay channels.<br>
@@ -56,8 +61,10 @@ In atonomous mode the script controls the relays on the same shelly device it is
 
 As the group fuse rating gets over-subscribed the loads gets disconnected/shedded in priority order. If for instance the induction stove starts to draw massive amount of current the car charger may be disconnected/shedded, if at some time later the water heater needs to heat the water it may be disconnected/shedded, and if some one now connects a water-boiler to one of the outlets connected to Channel-0 the room heating is likely disconnected/shedded. As the loads decrease (water-boiler is un-plugged, dinner is ready, the warm water has heated) the loads are re-connected one after one in priority order as long ase the group-fuse is not over-subscribed.
 
-### Protecting a single phase mater fuse from over-current
+### Protecting a single phase group fuse from tripping in distributed mode.
+In case the atonomous mode shedding is not suitable because of the cabling topology, distances, etc. a the distributed shedding mode can be applied.
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Distributed.png" width="50%">
+In the distributed shedding mode setup, the shedding script running on one of the devices interacts with several remote shelly devices (all participating in the shedding group) to provide power readings, and control of relays.  
 
 ### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the grid-provider.
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/8278d0251a46eb7a93dd0ad9879470cea49bb8d1/pictures/GridLoadBalancing.png" width="50%">
