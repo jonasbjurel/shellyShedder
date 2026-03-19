@@ -49,6 +49,7 @@ This shedder script provide means to support multiple use-cases one by one, or i
 
 ### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the 
 grid-provider.
+<img src="https://github.com/jonasbjurel/shellyShedder/blob/8278d0251a46eb7a93dd0ad9879470cea49bb8d1/pictures/GridLoadBalancing.png" width="50%">
 
 ## Script configuration (persistant)
 This script's behaviour depends on script configuration settings with default values as defined in the
