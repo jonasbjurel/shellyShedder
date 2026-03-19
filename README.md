@@ -47,8 +47,7 @@ This shedder script provide means to support multiple use-cases one by one, or i
 ### Protecting a single phase mater fuse from over-current
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Distributed.png" width="50%">
 
-### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the 
-grid-provider.
+### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the grid-provider.
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/8278d0251a46eb7a93dd0ad9879470cea49bb8d1/pictures/GridLoadBalancing.png" width="50%">
 
 ## Script configuration (persistant)
