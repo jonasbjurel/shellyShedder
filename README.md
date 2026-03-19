@@ -42,7 +42,11 @@ The logs are available through the local Shelly web-server or through the Shelly
 ## Supported use cases:
 This shedder script provide means to support multiple use-cases one by one, or in combination.
 ### Protecting a single phase group fuse from over-current in atonomous mode.
+<img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Atonomous.png" width="50%">
+
 ### Protecting a single phase mater fuse from over-current
+<img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Distributed.png" width="50%">
+
 ### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the 
 grid-provider.
 
