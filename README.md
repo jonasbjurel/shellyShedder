@@ -62,9 +62,17 @@ In atonomous mode the script controls the relays on the same shelly device it is
 As the group fuse rating gets over-subscribed the loads gets disconnected/shedded in priority order. If for instance the induction stove starts to draw massive amount of current the car charger may be disconnected/shedded, if at some time later the water heater needs to heat the water it may be disconnected/shedded, and if some one now connects a water-boiler to one of the outlets connected to Channel-0 the room heating is likely disconnected/shedded. As the loads decrease (water-boiler is un-plugged, dinner is ready, the warm water has heated) the loads are re-connected one after one in priority order as long ase the group-fuse is not over-subscribed.
 
 ### Protecting a single phase group fuse from tripping in distributed mode.
-In case the atonomous mode shedding is not suitable because of the cabling topology, distances, etc. a the distributed shedding mode can be applied.
+In case the atonomous mode shedding is not suitable because of the cabling topology, distances, etc. a distributed shedding mode can be applied.
+
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Distributed.png" width="50%">
-In the distributed shedding mode setup, the shedding script running on one of the devices interacts with several remote shelly devices (all participating in the shedding group) to provide power readings, and control of relays.  
+
+*Figure 2. Shelly shedding script in distributed shedding configuration.*<br><br>
+
+In the distributed shedding mode setup, the shedding script running on one of the shelly devices part of the shedding group interacting with several remote shelly devices also participating in the shedding group to provide current readings, control of relays... <br>
+Although in theory this setup provides the same functionality as for the atonomous mode - the characteristics is quite differen:
+* It requires connectivity to work.
+* Lost connectivity could lead to unexpected behaviour impacting robustness.
+* The latency for measurement and control will be significantly higher than is the case for atonomous mode - leading to longer reaction times.
 
 ### Limiting a single phase current draw from exceeding current loads causing penalties as defined by the grid-provider.
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/8278d0251a46eb7a93dd0ad9879470cea49bb8d1/pictures/GridLoadBalancing.png" width="50%">
