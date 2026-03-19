@@ -41,9 +41,11 @@ The logs are available through the local Shelly web-server or through the Shelly
 
 ## Supported use cases:
 This shedder script provide means to support multiple use-cases one by one, or in combination.
-### Protecting a single phase group fuse from over-current in atonomous mode.
+The script can work in atonomous shedding mode, measuring and shedding channels on the local shelly device it is tunning on. The script can also control a distributed setup, controling a set of remote shelly devices all participating in a shedding group. Finally the script may participate in a larger loadbalancing setup aimed to control the grid current draw such that unnecessarry current peaks occur - potentially resulting penalty fees. 
+### Protecting a single phase group fuse from tripping in atonomous mode.
+There are many occations where a group fuse can not be dimentioned for all the potential loads connected to it, this can because the feed cabling is not dimentioned for higher fuse ratings, because of the cost of higher rated grid fuses, or otherwise. Shedding is a technique that controls the current through a fuse by disconnecting low priority loads when needed to not trip the fuse - this shedder script does exactly that. The shedder script provides several modes of operation of which the atonomous mode is the simplest-, most robust/reliable-, and with the quickest response time. 
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Atonomous.png" width="50%">
-
+In atonomous mode the script controls the relays on the same shelly device it is running on. Apart from configuration and status updates there is no requirement on network connectivity (Ethernet/WiFi), the basic functions remain intact even if the connectivity fails
 ### Protecting a single phase mater fuse from over-current
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Distributed.png" width="50%">
 
