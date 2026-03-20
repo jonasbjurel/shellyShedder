@@ -19,7 +19,7 @@ There are many occations where a group fuse can not be dimentioned for all the p
 
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Atonomous.png" width="75%">
 
-*Figure 1. Shelly shedding script in atonomus shedding configuration.*<br><br>
+*Figure 1. Shelly shedding script in an atonomus shedding configuration.*<br><br>
 In atonomous mode the script controls the relays on the same shelly device it is running on. Apart from configuration and status updates there is no requirement on network connectivity (Ethernet/WiFi), the basic functions remain intact even if the connectivity fails. Further more, all current measurements and relay control happens locally with minimum latency resulting in prompt respone times for current measurement and relay control. Any Shelly device of generation 2 and higher, carying one or more relays with current measure capabilities can be used. Each of the shelly relay channels is configured with it's shedding priority, wether it is allowed to be shedded, wether it should be part of the fuse current measurement, etc. In the example given in *Figure 1* the scripts runs on a Shelly device with 4 relay channels.<br>
 * The last channel (chanel 3) is connected to loads that has the lowest priority and will be disconnected/shedded first and is hence configured with a priority of 2, in this example a car charger .<br>
 * Channel 2, has the next lowest priority and is configured with a priority of 1, in this example it is connected to water heater.<br>
@@ -33,12 +33,12 @@ In case the atonomous mode shedding is not suitable because of the cabling topol
 
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Distributed.png" width="75%">
 
-*Figure 2. Shelly shedding script in distributed shedding configuration.*<br><br>
-In the distributed shedding mode setup, the shedding script running on one of the shelly devices part of the shedding group interacting with several remote shelly devices also participating in the shedding group to provide current readings, control of relays... <br>
-Although in theory this setup provides the same functionality as for the atonomous mode - the characteristics is quite differen:
+*Figure 2. Shelly shedding script in a distributed shedding configuration.*<br><br>
+In the distributed shedding mode setup, the shedding script is running on one of the Shelly devices part of the shedding group and interacts with several remote Shelly devices also participating in the shedding group providing current readings, control of relays, etc.<br>
+Although in theory this setup provides the same functionality as for the atonomous mode - the characteristics is quite different:
 * It requires connectivity to work.
 * Lost connectivity could lead to unexpected behaviour impacting robustness.
-* The latency for measurement and control will be significantly higher than is the case for atonomous mode - leading to longer reaction times.
+* The latency for measurement and control will be significantly higher than is the case for atonomous mode, leading to longer reaction times.
 
 ### Load balancing to avoid excessive grid load.
 Another use case is to regulate the load drawn from the grid such that the current is capped below any potential grid provider threshold at which penalty fees apply. 
