@@ -40,9 +40,10 @@ Although in theory this setup provides the same functionality as for the atonomo
 * Lost connectivity could lead to unexpected behaviour impacting robustness.
 * The latency for measurement and control will be significantly higher than is the case for atonomous mode - leading to longer reaction times.
 
-### Limiting a single phase current draw from exceeding grid current loads.
-
+### Load balancing to avoid excessive grid load.
+Another use case is to regulate the load drawn from the grid such that the current is capped below any potential grid provider threshold at which penalty fees apply. 
 <img src="https://github.com/jonasbjurel/shellyShedder/blob/8278d0251a46eb7a93dd0ad9879470cea49bb8d1/pictures/GridLoadBalancing.png" width="75%">
+In this scenario the grid current is reported through the utility meter's HAN port to some kind of automation entity. At currents close to the threshold, the automation entity can request capping of the current draw from one or several Shelly devices running the shedding script. The automation entity does not control the shedding priorities as that is thee task of each shedding script. 
 
 ## Description: 
 This current shedding script maintains a load that prevents a single phase group fuse to trip-, 
