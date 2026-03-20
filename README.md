@@ -7,7 +7,7 @@ A general shelly load shedding script
 License: Apache 2 
 
 ## Purpose, principles and use cases:
-The purpose of this Shedding script is to provide means to control current drawing through group fuses, grid termination points, etc., such that unnecessary fuse shedding happens or excessive grid cost is charged for due to high current draw, and even control the power draw at forcasted high cost periods.
+The purpose of this Shedder script is to provide means to control current drawing through group fuses, grid termination points, etc., such that unnecessary fuse shedding happens or excessive grid cost is charged for due to high current draw, and even control the power draw at forcasted high cost periods.
 
 The shedder script provide means to support multiple use-cases one by one, or in combination.
 The script can work in atonomous shedding mode, measuring and shedding channels on the local shelly device it is running on. The script can also control a distributed setup, controlling a set of remote shelly devices all participating in a shedding group. Finally the script may also participate in a larger loadbalancing setup aimed to control the grid current and power draw such that unnecessarry current peaks occur - potentially resulting penalty fees, or excessive energy bills at high cost periods.
