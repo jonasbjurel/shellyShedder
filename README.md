@@ -17,7 +17,7 @@ The shedder script manages a single phase only, 3 separate script instances can 
 ### Protecting a single phase group fuse from tripping in atonomous mode.
 There are many occations where a group fuse can not be dimentioned for all the potential loads connected to it, this can because the feed cabling is not dimentioned for higher fuse ratings, because of the cost of higher rated grid fuses, or otherwise. Shedding is a technique that controls the current through a fuse by disconnecting low priority loads when needed to not trip the fuse - this shedder script does exactly that. The shedder script provides several modes of operation of which the atonomous mode is the simplest-, most robust/reliable-, and with the quickest response time.
 
-<img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Atonomous.png" width="75%">
+<img src="pictures/Atonomous.png" width="75%">
 
 *Figure 1. Shelly shedding script in an atonomus shedding configuration.*<br><br>
 In atonomous mode the script controls the relays on the same shelly device it is running on. Apart from configuration and status updates there is no requirement on network connectivity (Ethernet/WiFi), the basic functions remain intact even if the connectivity fails. Further more, all current measurements and relay control happens locally with minimum latency resulting in prompt respone times for current measurement and relay control. Any Shelly device of generation 2 and higher, carying one or more relays with current measure capabilities can be used. Each of the shelly relay channels is configured with it's shedding priority, wether it is allowed to be shedded, wether it should be part of the fuse current measurement, etc. In the example given in *Figure 1* the scripts runs on a Shelly device with 4 relay channels.<br>
@@ -31,7 +31,7 @@ As the group fuse rating gets over-subscribed the loads gets disconnected/shedde
 ### Protecting a single phase group fuse from tripping in distributed mode.
 In case the atonomous mode shedding is not suitable because of the cabling topology, distances, etc. a distributed shedding mode can be applied.
 
-<img src="https://github.com/jonasbjurel/shellyShedder/blob/01c5b2ffe72093523176ae9bcac66f30427e2571/pictures/Distributed.png" width="75%">
+<img src="pictures/Distributed.png" width="75%">
 
 *Figure 2. Shelly shedding script in a distributed shedding configuration.*<br><br>
 In the distributed shedding mode setup, the shedding script is running on one of the Shelly devices part of the shedding group and interacts with several remote Shelly devices also participating in the shedding group providing current readings, control of relays, etc.<br>
@@ -42,7 +42,7 @@ Although in theory this setup provides the same functionality as for the atonomo
 
 ### Load balancing to avoid excessive grid load.
 Another use case is to regulate the load drawn from the grid such that the current is capped below any potential grid provider threshold at which penalty fees apply. 
-<img src="https://github.com/jonasbjurel/shellyShedder/blob/8278d0251a46eb7a93dd0ad9879470cea49bb8d1/pictures/GridLoadBalancing.png" width="75%">
+<img src="pictures/GridLoadBalancing.png" width="75%">
 *Figure 3. Shelly shedding script in a grid load-balancing configuration.*<br><br>
 In this scenario the grid current is reported through the utility meter's HAN port to some kind of automation entity. At currents close to the threshold, the automation entity can request capping of the current draw from one or several Shelly devices running the shedding script. The automation entity does not control the shedding priorities as that is thee task of each shedding script. 
 
