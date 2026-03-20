@@ -1,4 +1,12 @@
-//Params
+/*********************************************************************************************************
+ * @title: Test suite for the eneral shelly load shedding script
+ * @(C): Jonas Bjurel et Al.
+ * @License: Apache 2 
+ * @description:
+ * This is an automated test suite for the Shelly shedder script found here: 
+ * https://github.com/jonasbjurel/shellyShedder/blob/main/shedder.js
+ * A detailed description can be found here: https://github.com/jonasbjurel/shellyShedder/blob/main/README.md
+ *********************************************************************************************************/
 
 
 let fuse_rating_setting = 16;
