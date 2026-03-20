@@ -41,7 +41,8 @@ Although in theory this setup provides the same functionality as for the atonomo
 * The latency for measurement and control will be significantly higher than is the case for atonomous mode, leading to longer reaction times.
 
 ### Load balancing to avoid excessive grid load.
-Another use case is to regulate the load drawn from the grid such that the current is capped below any potential grid provider threshold at which penalty fees apply. 
+Another use case is to regulate the load drawn from the grid such that the current is capped below any potential grid provider threshold at which penalty fees apply.
+
 <img src="pictures/GridLoadBalancing.png" width="75%">
 
 *Figure 3. Shelly shedding script in a grid load-balancing configuration.*<br><br>
