@@ -17,6 +17,7 @@
 
 
 
+
 /********************************************    Constants ***********************************************/
 const LOG_PREFIX = "shedder"
 const LOG_VERBOSE = 0;
@@ -210,6 +211,7 @@ function shedderEndPoint(req, res) {
       break;
       
     case "getLoadStatus":
+      //print("Answered load_status request");
       res.body = JSON.stringify({loadDirection:direction ,
                                   overLoadTime:over_load_time, coolDownTimeRemaining:cool_down_time_remaining,
                                   lastKnownCurrent:last_known_current,
@@ -235,7 +237,7 @@ function shedderEndPoint(req, res) {
         if(first_to_last_to_shed[i].shed) prio++;
       for (let i = 0; i < switchStatus.length; i++){
         switchStatus[i] = first_to_last_to_shed[i];
-        switchStatus[i].switch_state = switch_state[i] == true ? "on" : "off";
+        switchStatus[i].switch_state = switch_state[switchStatus[i].id] == true ? "on" : "off";
         if(first_to_last_to_shed[i].shed) {
           switchStatus[i].priority = prio-1;
           prio--;
@@ -474,33 +476,33 @@ function canLoad(current) {
  * Provides the aggregated current through the group fuse to be protected, I.e. the sum of the 
  * current through all channels. If in simulation mode, the current is the aggregate of the
  * "simulated_current[]" array elements. */
-function get_current() {																	// TODO, must be changed to async
+function get_current() {															        // TODO, must be changed to async
+  //print("Simulated current: " + Number(simulated_current[0]) + "," + Number(simulated_current[1]) + "," + Number(simulated_current[2]) + "," + Number(simulated_current[3]));
+  //print("switch_state: " + switch_state);
   let previous_current_ten_percent_deviation = 0;											// in order to fetch from NW API
   let total_current = 0;
   if (simulation) {
     //print("switch state: " + switch_state);
 
     for (let i = 0; i < first_to_last_to_shed.length; i++) {
-      //if (idx_next_to_toggle_off <= i && first_to_last_to_shed[i].measure && switch_state[i]) {
-      //print("switch state is: " + switch_state[i] + " i=" + i);
-      if (switch_state[i] == true && first_to_last_to_shed[i].measure) {
+      if (switch_state[first_to_last_to_shed[i].id] == true && first_to_last_to_shed[i].measure) {
           //print("Measuring");
-          last_known_current[i] = Number(simulated_current[i]);
-          current_vector[i] = Number(simulated_current[i]);
+          last_known_current[first_to_last_to_shed[i].id] = Number(simulated_current[first_to_last_to_shed[i].id]);
+          current_vector[first_to_last_to_shed[i].id] = Number(simulated_current[first_to_last_to_shed[i].id]);
       }
       else {
         //print("Dont measure");
-        current_vector[i] = 0;
+        current_vector[first_to_last_to_shed[i].id] = 0;
       }
     }
     //print("current vector: " + current_vector);
   }
-  else {
+  else { //FIX!!!!
     for (let i = 0; i < let first_to_last_to_shed.length; i++) {
       if (first_to_last_to_shed[i].addr == "localhost" && first_to_last_to_shed[i].measure){
-      	current_vector[i] = Shelly.getComponentStatus("switch:" + i).current;
+      	current_vector[first_to_last_to_shed[i].id] = Shelly.getComponentStatus("switch:" + first_to_last_to_shed[i].id).current;
       	if (idx_next_to_toggle_off <= i) 
-	  last_known_current[i] = current_vector[i];
+	      last_known_current[i] = current_vector[i];
       }
       else if ( first_to_last_to_shed[i].measure)
 	queueShellyCall("HTTP.GET", { url: "http://" + first_to_last_to_shed[i].addr +
@@ -531,10 +533,10 @@ function get_current() {																	// TODO, must be changed to async
 /* function turn()
  * Turns the switch first_to_last_to_shed[idx] on or off */
 function turn(idx, dir) {
-  log(LOG_INFO, "Turning switch " + idx + " to " + dir);
   o = first_to_last_to_shed[idx];
+  log(LOG_INFO, "Turning switch " + o.id + " to " + dir);
   on = dir == "on" ? true : false;
-  switch_state[idx] = on;
+  switch_state[o.id] = on;
   if(simulation)
 	return;
   if (def(o.gen)) {
@@ -745,7 +747,7 @@ function scanPower() {
   //print("Total: " + total);
   time_to_test_loading += scan_interval;
   if (idx_next_to_toggle_off && time_to_test_loading > time_to_test_loading_setting) {
-    last_known_current[idx_next_to_toggle_off-1] = 0;
+    last_known_current[first_to_last_to_shed[idx_next_to_toggle_off-1].id] = 0;
     time_to_test_loading = 0;
     log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
   }
@@ -754,70 +756,76 @@ function scanPower() {
 
   let can_load = canLoad(total);
   //print("canLoad: " + can_load);
-  if (must_shed) { //CHECK Boundaries
+  if (idx_next_to_toggle_off < first_to_last_to_shed.length & must_shed) { //CHECK Boundaries
     direction = "shedding";
     //print(1);
     //print("Shedding....");
     time_to_test_loading = 0;
   }
   else if (idx_next_to_toggle_off && can_load && total + 
-           last_known_current[idx_next_to_toggle_off - 1] < fuse_rating_setting) {
+           last_known_current[first_to_last_to_shed[idx_next_to_toggle_off-1].id] < fuse_rating_setting) {
       //print(2);
       direction = "loading";
   }
   else {
     direction = "coasting";
-    //print(3);
   }
-  //print("Direction: " + direction);
-  //print("Next to toggle: " + idx_next_to_toggle_off); 
-  //print("Total: " + total);
-  //if (idx_next_to_toggle_off ) print("lastKnownCurrent[" + (idx_next_to_toggle_off - 1) + "]: " + last_known_current[idx_next_to_toggle_off - 1]);
   if (direction == "loading") {
-    print("Loading....");
+    //print("Loading....");
     coasting_report_cnt = 0;
-    while (idx_next_to_toggle_off > 0) {
-      idx_next_to_toggle_off--;
-      if (first_to_last_to_shed[idx_next_to_toggle_off].shed)
-        break;
-    }
-    if ((idx_next_to_toggle_off == 0 && first_to_last_to_shed[idx_next_to_toggle_off].shed) ||
-         idx_next_to_toggle_off) { 
-      if (overload_webhook_uri_setting != "" && hostname_setting != "")
-        queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
-                        {hostname: hostname_setting, state: "Loading", current: total,
-                        next_to_discconect: idx_next_to_toggle_off}}, 
-						function(result, error_code, error_message, idx) {
-			              return;
-                        }
-                        );
-      log(LOG_INFO, "Loading channel " + (idx_next_to_toggle_off) + ", current before loading is: " +
+    if (idx_next_to_toggle_off > 0) { 
+      while (idx_next_to_toggle_off > 0) {
+        idx_next_to_toggle_off--;
+        if (first_to_last_to_shed[idx_next_to_toggle_off].shed)
+          break;
+      }
+      if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
+        if (overload_webhook_uri_setting != "" && hostname_setting != "")
+          queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
+                          {hostname: hostname_setting, state: "Loading", current: total,
+                          next_to_discconect: first_to_last_to_shed[idx_next_to_toggle_off].id}}, 
+		                  function(result, error_code, error_message, idx) {
+			                return;
+                          }
+                          );
+        log(LOG_INFO, "Loading channel " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before loading is: " +
                        total +" A, expected current after loading is: " + 
-                       (total + last_known_current[idx_next_to_toggle_off]) + " A");
-      turn(idx_next_to_toggle_off, "on");
+                       (total + last_known_current[first_to_last_to_shed[idx_next_to_toggle_off].id]) + " A");
+      
+        turn(idx_next_to_toggle_off, "on");
+      }
+      else 
+        log(LOG_INFO, "No more channels to load");
     }
   }
   if (direction == "shedding") {
     coasting_report_cnt = 0;
-    while (idx_next_to_toggle_off < first_to_last_to_shed.length &&
-           !first_to_last_to_shed[idx_next_to_toggle_off].shed)
-      idx_next_to_toggle_off++;      
-    if (idx_next_to_toggle_off != first_to_last_to_shed){
-      if (overload_webhook_uri_setting != "" && hostname_setting != "")
-        queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
-                        {hostname: hostname_setting, state: "Shedding", current: total,
-                         next_to_discconect: idx_next_to_toggle_off}}, 
-			function(result, error_code, error_message) {
-			  return;
-            });
-      log(LOG_INFO, "Shedding channel " + idx_next_to_toggle_off + ", current before shedding is: "
-            + total + " A, expected current after shedding is: " +
-            + (total - last_known_current[idx_next_to_toggle_off]) + " A");
-      turn(idx_next_to_toggle_off, "off");
-      if (idx_next_to_toggle_off < first_to_last_to_shed.length)
+    if (idx_next_to_toggle_off != first_to_last_to_shed.length) {
+      if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
+        if (overload_webhook_uri_setting != "" && hostname_setting != "")
+          queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
+                          {hostname: hostname_setting, state: "Shedding", current: total,
+                          next_to_discconect: idx_next_to_toggle_off}}, 
+			              function(result, error_code, error_message) {
+			                return;
+                          }
+                          );
+        log(LOG_INFO, "Shedding channel " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before shedding is: "
+              + total + " A, expected current after shedding is: " +
+              + (total - last_known_current[first_to_last_to_shed[idx_next_to_toggle_off].id]) + " A");              
+        turn(idx_next_to_toggle_off, "off");
+      }
+      else
+        log(LOG_WARN, "No more channels to shed");
+      while (idx_next_to_toggle_off < first_to_last_to_shed.length){
         idx_next_to_toggle_off++;
+        if (idx_next_to_toggle_off >=first_to_last_to_shed.length || first_to_last_to_shed[idx_next_to_toggle_off].shed)
+          break;
+      }    
     }
   }
+  else 
+    no_more_can_ched_msg = false;
   if (direction == "coasting") {
      if (coasting_report_cnt * scan_interval * (overrun_cnt + 1) >= 60)
         coasting_report_cnt = 0;
@@ -826,7 +834,7 @@ function scanPower() {
      if (!coasting_report_cnt)
        queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                        {hostname: hostname_setting, state: "Shedding", current: total,
-                        next_to_discconect: idx_next_to_toggle_off}}, 
+                        next_to_discconect: first_to_last_to_shed[idx_next_to_toggle_off].id}}, 
 			function(result, error_code, error_message) {
 			  return;
             });
