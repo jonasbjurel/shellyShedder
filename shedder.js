@@ -86,7 +86,7 @@ for (let i = 0; i < first_to_last_to_shed.length; i++) last_known_current[i] = 0
 let min_trip_time = -1;
 let over_load_time = -1;
 let cool_down_time_remaining = -1;
-let time_to_test_loading = 0;
+let time_to_test_loading = time_to_test_loading_setting;
 let cool_logging = false;
 let shelly_call_records = [];
 let running = false;
@@ -461,7 +461,7 @@ function canLoad(current) {
   }
   if (cool_down_time_remaining <= scan_interval * (overrun_cnt + 1)) {
     if(cool_down_time_remaining != -1) {
-      log(LOG_INFO, "The fuse that was previously overloaded with " + 
+      log(LOG_INFO, "The fuse that was previously overloaded " + 
                 "has been cooled down for further loading");
     }
     cool_down_time_remaining = -1;
@@ -724,11 +724,19 @@ function updateKvs() {
   createKV("log_level_setting", log_level_setting, false);
 }
 
+function nextIdxToLoad(){
+  let idx_next_to_toggle_off_tmp = idx_next_to_toggle_off;
+  while (idx_next_to_toggle_off_tmp > 0) {
+    idx_next_to_toggle_off_tmp--;
+    if (first_to_last_to_shed[idx_next_to_toggle_off_tmp].shed)
+      break;
+   }
+   return idx_next_to_toggle_off_tmp;
+}
 
 /* function scanPower()
  * Main scan loop, gets invoked every "scan_interval" seconds. */
 function scanPower() {
-  //print("Scanning");
   current_scan_time  += scan_interval;
   if (!last_overrun)
 	overrun_cnt = 0;
@@ -744,34 +752,31 @@ function scanPower() {
   if (!(current_scan_time % 10)) 
     checkKVS();
   total = get_current();
-  //print("Total: " + total);
-  time_to_test_loading += scan_interval;
-  if (idx_next_to_toggle_off && time_to_test_loading > time_to_test_loading_setting) {
-    last_known_current[first_to_last_to_shed[idx_next_to_toggle_off-1].id] = 0;
-    time_to_test_loading = 0;
+  time_to_test_loading -= scan_interval;
+  if (idx_next_to_toggle_off && time_to_test_loading <= 0) {
+    print(last_known_current);
+    last_known_current[first_to_last_to_shed[nextIdxToLoad()].id] = 0;
+    time_to_test_loading = time_to_test_loading_setting;
     log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
+    print(last_known_current);
+    print(nextIdxToLoad());
+    print(first_to_last_to_shed[nextIdxToLoad()].id);
   }
   let must_shed = mustShed(total);
-  //print("mustShed: " + must_shed);
-
   let can_load = canLoad(total);
-  //print("canLoad: " + can_load);
-  if (idx_next_to_toggle_off < first_to_last_to_shed.length & must_shed) { //CHECK Boundaries
+  if (idx_next_to_toggle_off < first_to_last_to_shed.length & must_shed) {
     direction = "shedding";
-    //print(1);
-    //print("Shedding....");
-    time_to_test_loading = 0;
+    time_to_test_loading = time_to_test_loading_setting;
   }
   else if (idx_next_to_toggle_off && can_load && total + 
-           last_known_current[first_to_last_to_shed[idx_next_to_toggle_off-1].id] < fuse_rating_setting) {
-      //print(2);
+           last_known_current[first_to_last_to_shed[nextIdxToLoad()].id] < fuse_rating_setting) {
+      print("loading " + last_known_current + " " + total + " " + first_to_last_to_shed[idx_next_to_toggle_off-1].id);
       direction = "loading";
   }
   else {
     direction = "coasting";
   }
   if (direction == "loading") {
-    //print("Loading....");
     coasting_report_cnt = 0;
     if (idx_next_to_toggle_off > 0) { 
       while (idx_next_to_toggle_off > 0) {
@@ -780,18 +785,20 @@ function scanPower() {
           break;
       }
       if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
-        if (overload_webhook_uri_setting != "" && hostname_setting != "")
-          queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
+        if (overload_webhook_uri_setting != "" && hostname_setting != "") {
+          print("SENDING A WEBHOOK for idx: " + idx_next_to_toggle_off);
+          /*queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                           {hostname: hostname_setting, state: "Loading", current: total,
                           next_to_discconect: first_to_last_to_shed[idx_next_to_toggle_off].id}}, 
 		                  function(result, error_code, error_message, idx) {
 			                return;
                           }
-                          );
+                          );*/
+        }
         log(LOG_INFO, "Loading channel " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before loading is: " +
                        total +" A, expected current after loading is: " + 
                        (total + last_known_current[first_to_last_to_shed[idx_next_to_toggle_off].id]) + " A");
-      
+        
         turn(idx_next_to_toggle_off, "on");
       }
       else 
@@ -802,14 +809,16 @@ function scanPower() {
     coasting_report_cnt = 0;
     if (idx_next_to_toggle_off != first_to_last_to_shed.length) {
       if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
-        if (overload_webhook_uri_setting != "" && hostname_setting != "")
-          queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
+        if (overload_webhook_uri_setting != "" && hostname_setting != "") {
+          print("SENDING A WEBHOOK for idx: " + idx_next_to_toggle_off);
+          /*queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                           {hostname: hostname_setting, state: "Shedding", current: total,
-                          next_to_discconect: idx_next_to_toggle_off}}, 
+                          next_to_discconect: first_to_last_to_shed[idx_next_to_toggle_off].id}}, 
 			              function(result, error_code, error_message) {
 			                return;
                           }
-                          );
+                          );*/
+        }
         log(LOG_INFO, "Shedding channel " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before shedding is: "
               + total + " A, expected current after shedding is: " +
               + (total - last_known_current[first_to_last_to_shed[idx_next_to_toggle_off].id]) + " A");              
@@ -831,13 +840,13 @@ function scanPower() {
         coasting_report_cnt = 0;
      else
        coasting_report_cnt++;
-     if (!coasting_report_cnt)
+     /*if (!coasting_report_cnt)
        queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                        {hostname: hostname_setting, state: "Shedding", current: total,
                         next_to_discconect: first_to_last_to_shed[idx_next_to_toggle_off].id}}, 
 			function(result, error_code, error_message) {
 			  return;
-            });
+            });*/
   }
   running = false;
   return;
