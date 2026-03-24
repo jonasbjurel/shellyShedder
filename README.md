@@ -199,7 +199,7 @@ the "Script configuration (persistant)" section above. This method does not rese
 Response body: None
 
 **Restart(NEW)**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?=restart*<br>
+*http://"ShellyURL"/script/<scriptId>/shedder?restart*<br>
 Restarts the shedding script, all persistant configurations are retained - but the the internal state machine is re-started, meaning that all shedding events-/states-, over-load-, cooling-, current-restriction-, etc. are reset.
 
 Response body: None
