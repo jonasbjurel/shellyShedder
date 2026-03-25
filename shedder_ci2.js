@@ -190,16 +190,16 @@ function KVSSet(key_values, cb) {
                         if (key === result.items[i].key && result.items[i].value != params.key_values[key]) {
                           print("setting key " + key + " to value: " + params.key_values[key]);
                           kvs_set_cnt++;
-                          /*queueShellyCall("KVS.Set", {key:key, value:params.key_values[key]},
+                          queueShellyCall("KVS.Set", {key:key, value:params.key_values[key]},
                                           function(result, error_code, error_message, cb) {
                                             //print("result: " + result + " Error message: " + error_message);
                                             kvs_set_cnt--;
-                                            if(!kvs_set_cnt)
+                                            if(!kvs_set_cnt && def(cb))
                                               cb();
                                             return;
                                           },
                                           params.cb
-                                          );*/
+                                          );
                         break;
                         }
                       }
@@ -221,6 +221,18 @@ function setCurrentRestriction(current_restriction, cb) {
                   },
                   cb
                   );
+}
+
+
+function factoryReset(cb) {
+  queueShellyCall("HTTP.GET", {url:"http://localhost/script/" + target_script_id +
+                              "/shedder?factory_reset_to_default"}, 
+                  function (result, error_code, error_message, cb) {
+                    if(def(cb))
+                      cb(result, error_code, error_message);
+                  },
+                  cb
+                  );  
 }
 
 
@@ -338,19 +350,21 @@ function getPrioChannel(switch_status, prio){
 }
 
 function noShed(switch_status, perfect_match, channels) {
-  if (!def(channels))
-    return switch_status.some(function(sw){return (sw.switchState == "off" && sw.shed) ? false:true});
-  else {
-    for (let i=0; i<switch_status.length; i++) {
-      if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "on")
-        break;
-      if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "off")
-        return false;
-      else if (perfect_match && switch_status[i].shed && switch_status[i].switch_state === "on")
-        return false;
-    }
-    return true;  
+  if (!def(channels)) {
+    channels = new Array(switch_status.length);
+    for (let i=0; i<switch_status.length; i++)
+      channels[i] = i;
+    perfect_match = true;
   }
+  for (let i=0; i<switch_status.length; i++) {
+    if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "on")
+      continue;
+    if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "off")
+      return false;
+    else if (perfect_match && switch_status[i].shed && switch_status[i].switch_state === "on")
+      return false;
+  }
+  return true;  
 }
 
 function shed(switch_status, perfect_match, channels) {
@@ -359,7 +373,7 @@ function shed(switch_status, perfect_match, channels) {
   else {
     for (let i=0; i<switch_status.length; i++) {
       if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "off")
-        break;
+        continue;
       else if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "on")
         return false;
       else if (perfect_match && switch_status[i].shed && switch_status[i].switch_state === "off")
@@ -442,13 +456,14 @@ function verificationEngine() {
           
         case 2:
           log(LOG_INFO, "Setup INFO: Setting up KVS, simulation, etc..");
-          /*KVSSet({fuse_rating_setting:fuse_rating_setting, fuse_char_setting:fuse_char_setting,
+          KVSSet({fuse_rating_setting:fuse_rating_setting, fuse_char_setting:fuse_char_setting,
                   margin_factor_setting:margin_factor_setting, cool_down_time_setting:cool_down_time_setting,
                   time_to_test_loading_setting:time_to_test_loading_setting, current_restriction_hysteresis_setting:current_restriction_hysteresis_setting,
-                  scan_interval:target_scan_interval, log_level_setting:LOG_INFO});*/
+                  scan_interval:target_scan_interval, log_level_setting:LOG_INFO});
           setCurrentRestriction(-1);
           setSimulation(true);
           setSimulatedCurrent([0,0,0,0]);
+          setCurrentRestriction(-1);
           break;
           
         default:
@@ -472,9 +487,6 @@ function verificationEngine() {
       getCurrent(function(result, error_code, error_message) {current = result});
       getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
       getLoadStatus(function(result, error_code, error_message) {load_status = result});
-      //print("current: " + JSON.stringify(current));
-      //print("Load: " + JSON.stringify(load_status));
-      //print("Switch: " + JSON.stringify(switch_status));
       if (def(current) && def(switch_status) && def(load_status) && current.total == 0 &&
         !switch_status.some(function(sw) {return sw.switchState == "on";}) && 
         load_status.overLoadTime == -1 && load_status.coolDownTimeRemaining == -1) {
@@ -482,7 +494,7 @@ function verificationEngine() {
         current = undefined;
         load_status = undefined;
         switch_status = undefined;
-        verification_phase = 9; 
+        verification_phase = 11; 
         verification_sub_phase = 0;
         break;
       }
@@ -500,7 +512,6 @@ function verificationEngine() {
 //TC-9; Test-loading
     case 9:
       if(waitTimer(0, 1)) return;
-      print(verification_sub_phase);
       if (!(verification_sub_phase % 2)){
         getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
         getLoadStatus(function(result, error_code, error_message){load_status=result});
@@ -519,61 +530,67 @@ function verificationEngine() {
           stopScript(true);
           verification_phase = -1;
           break;
-          }
+        }
         verification_current_vector = [0,0,0,0];
         log(LOG_INFO, "4*10 In test-loading test INFO: Changing simulated current to " + verification_current_vector);
-        log(LOG_INFO, "4*10 In test-loading test INFO: Waiting for time_to_test_loading_setting*0.8: " + (~~time_to_test_loading_setting*0.8) + " seconds before next check.");
+        log(LOG_INFO, "4*10 In test-loading test INFO: Waiting for time_to_test_loading_setting*: ~" + (~~time_to_test_loading_setting*0.8) + " seconds before next check.");
         setSimulatedCurrent(verification_current_vector);
       }
-      
-      if (verification_sub_phase == ~~(4 + time_to_test_loading_setting*0.8)) {
+      if (verification_sub_phase == ~~(4 + time_to_test_loading_setting*0.8/1.5)) {
         if(!shed(switch_status, true, [3, 2, 1])) {
           log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 1, 2 and 3 but got " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
           break;
         }
+        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 1, 2 and 3 shedded as expected.");
+
       }
-      if (verification_sub_phase == ~~(4 + time_to_test_loading_setting*1.2)) {
+      if (verification_sub_phase == ~~(4 + time_to_test_loading_setting*1.2/1.5)) {
         if(!shed(switch_status, true, [3, 2])) {
           log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 2 and 3 but got: " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
           break;
         }
+        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 2 and 3 shedded as expected.");
       }
-      if (verification_sub_phase == ~~(4 + 2*time_to_test_loading_setting*0.8)) {
+      if (verification_sub_phase == ~~(4 + 2*time_to_test_loading_setting*0.8/1.5)) {
         if(!shed(switch_status, true, [3, 2])) {
           log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 2 and 3 but got: " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
           break;
         }
+        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 2 and 3 shedded as expected.");
       }
-      if (verification_sub_phase == ~~(4 + 2*time_to_test_loading_setting*1.2)) {
+      if (verification_sub_phase == ~~(4 + 2*time_to_test_loading_setting*1.2/1.5)) {
         if(!shed(switch_status, true, [3])) {
           log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 3 but got: " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
           break;
         }
+        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 3 shedded as expected.");
       }
-      if (verification_sub_phase == ~~(4 + 3*time_to_test_loading_setting*0.8)) {
+      if (verification_sub_phase == ~~(4 + 3*time_to_test_loading_setting*0.8/1.5)) {
         if(!shed(switch_status, true, [3])) {
           log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 3 but got: " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
           break;
         }
+        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 3 shedded as expected.");
       }
-      if (verification_sub_phase == ~~(4 + 3*time_to_test_loading_setting*1.2)) {
+      if (verification_sub_phase == ~~(4 + 3*time_to_test_loading_setting*1.2/1.5)) {
         if(!noShed(switch_status)) {
           log(LOG_ERROR, "4*10 In test-loading test ERROR: Didn't expect any shed but got: " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
           break;
         }
-       log(LOG_INFO, "4*10 In test-loading test SUCCESS: Test-loading happend as expected");
+        log(LOG_INFO, "4*10 In test-loading test INFO: No channel shedded as expected.");
+        log(LOG_INFO, "4*10 In test-loading test SUCCESS: Test-loading happend as expected");
         current = undefined;
         load_status = undefined;
         switch_status = undefined;
@@ -584,18 +601,163 @@ function verificationEngine() {
       verification_sub_phase++;
       break; 
 
-      
-/*    
+
 //TC-10; NB Current restriction
+    case 10:
+      if(waitTimer(0, 1)) return;
+      if (!(verification_sub_phase % 2)) {
+        getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
+        getLoadStatus(function(result, error_code, error_message){load_status=result});
+      }
+      if (verification_sub_phase == 0) {
+        log(LOG_INFO, "============= NB current restriction @ Load: In =============");
+        
+        verification_current_vector = [fuse_rating_setting/4,fuse_rating_setting/4,
+                                       fuse_rating_setting/4,fuse_rating_setting/4];
+        log(LOG_INFO, "NB current restriction test INFO: Changing simulated current to " + verification_current_vector);
+        setSimulatedCurrent(verification_current_vector);
+      }
+      
+      if (verification_sub_phase == 4) {        
+        if(!noShed(switch_status)) {
+          log(LOG_ERROR, "NB current restriction test ERROR: Didn't expect any shed but got: " + JSON.stringify(switch_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        log(LOG_INFO, "NB current restriction test INFO: got no shedding as expected");
+        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction to In*3/4");
+        setCurrentRestriction(fuse_rating_setting*3/4);
+      }
+      
+      if (verification_sub_phase == 8) {        
+        if(!shed(switch_status, true, [3])) {
+          log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 3 to be shedded but got: " + JSON.stringify(switch_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        log(LOG_INFO, "NB current restriction test INFO: Channel 3 was sechedded as expected");
+        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction to In*2/4");
+        setCurrentRestriction(fuse_rating_setting*2/4);
+      }
+      
+      if (verification_sub_phase == 12) {        
+        if(!shed(switch_status, true, [2, 3])) {
+          log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        log(LOG_INFO, "NB current restriction test INFO: Channel 2 and 3 was sechedded as expected");
+        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction to In*1/4");
+        setCurrentRestriction(fuse_rating_setting*1/4);
+      }
+      
+      if (verification_sub_phase == 16) {        
+        if(!shed(switch_status, true, [1, 2, 3])) {
+          log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 1, 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        log(LOG_INFO, "NB current restriction test INFO: Channel 1, 2 and 3 was sechedded as expected");
+        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction to 0");
+        setCurrentRestriction(0);
+      }
+      
+       if (verification_sub_phase == 20) {        
+        if(!shed(switch_status, true, [1, 2, 3])) {
+          log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 1, 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        log(LOG_INFO, "NB current restriction test INFO: Channel 1, 2 and 3 was sechedded as expected");
+        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction In*2/4");
+        setCurrentRestriction(fuse_rating_setting*2/4);
+      }     
+
+      if (verification_sub_phase == 24) {        
+        if(!shed(switch_status, true, [1, 2, 3])) {
+          log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 1, 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        log(LOG_INFO, "NB current restriction test INFO: Channel 1, 2 and 3 was sechedded as expected");
+        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction to In*2/4*1.1");
+        setCurrentRestriction(fuse_rating_setting*2/4*1.1);
+      }
+      
+      if (verification_sub_phase == 28) {        
+        if(!shed(switch_status, true, [2, 3])) {
+          log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        log(LOG_INFO, "NB current restriction test INFO: Channel 2 and 3 was sechedded as expected");
+        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction to -1 (None)");
+        setCurrentRestriction(-1);
+      }
+      
+      if (verification_sub_phase == 32) {        
+        if(!noShed(switch_status)) {
+          log(LOG_ERROR, "NB current restriction test ERROR: Didn't expect any channel to be shedded but got: " + JSON.stringify(switch_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        log(LOG_INFO, "NB current restriction test INFO: No channel shedded as expected." + JSON.stringify(switch_status));
+        log(LOG_INFO, "NB current restriction test SUCCESS: Shedding happend as expected");
+        current = undefined;
+        load_status = undefined;
+        switch_status = undefined;
+        verification_phase++; 
+        verification_sub_phase = 0;
+        break;
+      }
+      verification_sub_phase++;
+      break;
+      
 //TC-11: API testing
-//TC-12: 169h Stability/Robustness test: ......
+    case 11:
+      if(waitTimer(0, 1)) return;
+      if (verification_sub_phase == 0) {
+        log(LOG_INFO, "============= HTTP API test =============");
+        log(LOG_INFO, "Factory reset INFO: Starting a factory reset");
+        factoryReset();
+      }
+      
+      if (verification_sub_phase == 11) {
+        //log(LOG_INFO, "Factory reset INFO: Starting a factory reset");
+        current = undefined;
+        load_status = undefined;
+        switch_status = undefined;
+        verification_phase++; 
+        verification_sub_phase = 0;
+        break;
+      }
+      verification_sub_phase++;
+      break;
+      
+//11.1 Factory reset - http://"ShellyURL"/script//shedder?factory_reset_to_default
+//11.2 Restart - http://"ShellyURL"/script//shedder?=restart
+//11.3 Current restriction (Already verified in TC 10)
+//11.4 Simulation (Already tested in TC 1)
+//11.5 Set simulated current (Already tested in earlier TCs)
+//11.6 Get current status (Already tested in TC...)
+//11.7 Get load status (Already tested in earlier TCs)
+//11.8 Get fuse trip time (Already tested in earlier TC)
+//11.9 Get switch status (Already tested in earlier TC)
+//TC-12 Asynchronous HTTP RPC callbacks
+//TC-13 KVS configuration and script ID identification
+//TC-14 169h Stability/Robustness test: ......
 
-
-*/
     default:
       return;
   }
-
 }
 
 /*********************************************************************************************************/
