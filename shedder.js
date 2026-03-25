@@ -98,6 +98,8 @@ let current_scan_time = 0;
 let calls = 0;
 let last_kvs_rev = -1; 
 let current_vector = new Array(first_to_last_to_shed.length);
+let delete_KVS_cnt = 0;
+
 /*********************************************************************************************************/
 
 
@@ -111,6 +113,20 @@ let current_vector = new Array(first_to_last_to_shed.length);
  * Check if defined */
 function def(o) {
   return typeof o !== "undefined";
+}
+
+/* function reboot()
+ * Reboots the Shelly */
+function reboot() {
+  Shelly.Reboot();
+}
+
+function restart() {
+  Shelly.call('Script.Stop', {id: Shelly.getCurrentScriptId()});                                      //The watchdog will restart the script
+}
+
+function factoryReset() {
+  deleteAllKVS(function(){restart()});
 }
 
 function parseQuery(queryString) {
@@ -143,16 +159,32 @@ function shedderEndPoint(req, res) {
   //print(Object.keys(key_values));
   //print(Object.keys(key_values)[0]);
 
-  switch(Object.keys(key_values)[0]){
+  switch(Object.keys(key_values)[0]) {
+    case "factory_reset_to_default":
+      log(LOG_WARN, "Factory reset to default ordered, will delete all KVS entries related to this script and restart the script");
+      factoryReset();
+      res.body = "Factory reset to default ordered, will delete all KVS entries related to this script and restart the script";
+      res.code = 200;     
+      break;
+      
+    case "restart":
+      log(LOG_WARN, "Restart of script ordered - will restart the script");
+      restart();
+      res.body = "Restart of script ordered - will restart the script";
+      res.code = 200;     
+      break;      
+           
     case "simulation":
       if(key_values.simulation === "true") {
         simulation = true;
         log(LOG_INFO, "Simulation started");
+        res.body = "Simulation started"
         res.code = 200;
       }
       else if(key_values.simulation === "false") {
         simulation = false;
         log(LOG_INFO, "Simulation stoped");
+        res.body = "Simulation stopped"
         res.code = 200;
       }
       else {
@@ -164,7 +196,7 @@ function shedderEndPoint(req, res) {
       }
       res.send();
       break;
-      
+
     case "setSimulatedCurrent":
       let ordered_simulation_current_str = key_values.setSimulatedCurrent.split(",");
       ordered_simulation_current_str[0] = ordered_simulation_current_str[0].split("[")[1];
@@ -205,10 +237,27 @@ function shedderEndPoint(req, res) {
       res.code = 200;
       simulated_current = ordered_simulation_current;
       break;
+      
     case "getCurrent":
       res.body = JSON.stringify({current:{total: total, channels:current_vector}});
       res.code = 200;
       break;
+      
+    case "setCurrentRestriction":
+      let ordered_set_current_restriction = JSON.parse(key_values.setCurrentRestriction)
+      if (typeof(ordered_set_current_restriction) != "number"){
+        log(LOG_WARN, "Received setCurrentRestriction: " + ordered_set_current_restriction + " is not a number");
+        res.body = "Received setCurrentRestriction: " + ordered_set_current_restriction + " is not a number";
+        res.code = 400;
+        break;
+      }
+      else {
+        current_restriction_setting = ordered_set_current_restriction;
+        log(LOG_INFO, "Setting current_restriction_setting to: " + current_restriction_setting);
+        res.body = "Setting current_restriction_setting to: " + current_restriction_setting;
+        res.code = 200;
+        break;
+      }
       
     case "getLoadStatus":
       //print("Answered load_status request");
@@ -353,11 +402,7 @@ function shellyEventCb(event) {
 }
 
 
-/* function reboot()
- * Reboots the Shelly */
-function reboot() {
-  Shelly.Reboot();
-}
+
 /*********************************************************************************************************/
 
 
@@ -446,10 +491,12 @@ function mustShed(current) {
  * After an overload situation, the fuse is not allowed to take more load until the 
  * fuse has cooled down for "cool_down_time_setting" seconds. */
 function canLoad(current) {
-  if (current_restriction_setting != -1 && current * (1 + current_restriction_hysteresis_setting) > 
-      current_restriction_setting) {
+  last_known_current[first_to_last_to_shed[nextIdxToLoad()].id]
+  if (current_restriction_setting != -1 &&
+      current_restriction_setting < (current +
+      last_known_current[first_to_last_to_shed[nextIdxToLoad()].id]) *
+      (1 + current_restriction_hysteresis_setting))
     return false;
-  }
   if (current > fuse_rating_setting) {
     cool_down_time_remaining = cool_down_time_setting;
     return false;
@@ -630,13 +677,6 @@ function updateSettingsFromKVS(){
              }
              break;
 
-          case "current_restriction_setting":
-            if (current_restriction_setting != result.items[KVS].value) {
-              current_restriction_setting = result.items[KVS].value;
-              log(LOG_INFO, "Northbound ordered current restriction has changed to: " + result.items[KVS].value);
-            }
-            break;
-
           case "current_restriction_hysteresis_setting":
             if (current_restriction_hysteresis_setting != result.items[KVS].value) {
               current_restriction_hysteresis_setting = result.items[KVS].value;
@@ -685,6 +725,7 @@ function updateSettingsFromKVS(){
 }
 
 
+//FIX - refactoring update and delete KVS handling to be more uniform
 /* function createKV(k, v, over_write);
  * Creates Key-value store entries from the script defined setting defaults, if "over_write" is 
  * set to true it will over-write an already existing key-value, otherwise not */
@@ -703,6 +744,34 @@ function createKV(k, v, over_write) {
 }
 
 
+/* function deleteKV(k);
+ * Deletes Key-value store entries */
+function deleteKV(keys, cb, params) {
+  if (delete_KVS_cnt) return -1;
+  for(let i=0; i<keys.length; i++){
+    delete_KVS_cnt++;
+    queueShellyCall("KVS.Delete", {key:keys[i]},
+                    function(result, error_code, error_message, params) {
+                      delete_KVS_cnt--;
+                      if(!delete_KVS_cnt && def(params.cb))
+                        params.cb(params.params);
+                    },
+                    {cb:cb, params:params}
+                    );
+  }
+}
+
+/* function deleteKvs()
+ * Deletes Key-Value store from script settings */
+function deleteAllKVS(cb, params) {
+  log(LOG_INFO, "Deleting KVS entries used for the ShellyShedding script, when the ShellyShedding" +
+                "script restarts it will populate the KVS store with factory default settings");
+  deleteKV(["hostname_setting", "fuse_rating_setting", "fuse_char_setting", "margin_factor_setting",
+           "cool_down_time_setting", "first_to_last_to_shed", "time_to_test_loading_setting",
+           "scan_interval", "current_restriction_hysteresis_setting", "overload_webhook_uri_setting",
+           "log_level_setting"], cb, params);
+}
+
 /* function updateKvs()
  * Creates and update the Key-Value store from default settings */
 function updateKvs() {
@@ -718,7 +787,7 @@ function updateKvs() {
   createKV("scan_interval", scan_interval, false);
   //createKV("simulation", simulation, false);
   //createKV("simulated_current", simulated_current, false);
-  createKV("current_restriction_setting", current_restriction_setting, false);
+  //createKV("current_restriction_setting", current_restriction_setting, false);
   createKV("current_restriction_hysteresis_setting", current_restriction_hysteresis_setting, false);
   createKV("overload_webhook_uri_setting", overload_webhook_uri_setting, false);
   createKV("log_level_setting", log_level_setting, false);
@@ -754,13 +823,13 @@ function scanPower() {
   total = get_current();
   time_to_test_loading -= scan_interval;
   if (idx_next_to_toggle_off && time_to_test_loading <= 0) {
-    print(last_known_current);
+    //print(last_known_current);
     last_known_current[first_to_last_to_shed[nextIdxToLoad()].id] = 0;
     time_to_test_loading = time_to_test_loading_setting;
     log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
-    print(last_known_current);
-    print(nextIdxToLoad());
-    print(first_to_last_to_shed[nextIdxToLoad()].id);
+    //print(last_known_current);
+    //print(nextIdxToLoad());
+    //print(first_to_last_to_shed[nextIdxToLoad()].id);
   }
   let must_shed = mustShed(total);
   let can_load = canLoad(total);
@@ -769,8 +838,8 @@ function scanPower() {
     time_to_test_loading = time_to_test_loading_setting;
   }
   else if (idx_next_to_toggle_off && can_load && total + 
-           last_known_current[first_to_last_to_shed[nextIdxToLoad()].id] < fuse_rating_setting) {
-      print("loading " + last_known_current + " " + total + " " + first_to_last_to_shed[idx_next_to_toggle_off-1].id);
+           last_known_current[first_to_last_to_shed[nextIdxToLoad()].id] <= fuse_rating_setting) {
+      //print("loading " + last_known_current + " " + total + " " + first_to_last_to_shed[idx_next_to_toggle_off-1].id);
       direction = "loading";
   }
   else {
@@ -826,9 +895,9 @@ function scanPower() {
       }
       else
         log(LOG_WARN, "No more channels to shed");
-      while (idx_next_to_toggle_off < first_to_last_to_shed.length){
+      while (idx_next_to_toggle_off < first_to_last_to_shed.length) {
         idx_next_to_toggle_off++;
-        if (idx_next_to_toggle_off >=first_to_last_to_shed.length || first_to_last_to_shed[idx_next_to_toggle_off].shed)
+        if (idx_next_to_toggle_off>=first_to_last_to_shed.length || first_to_last_to_shed[idx_next_to_toggle_off].shed)
           break;
       }    
     }
