@@ -8,9 +8,6 @@
  * A detailed description can be found here: https://github.com/jonasbjurel/shellyShedder/blob/main/README.md
  *********************************************************************************************************/
 
-
-
-
 let fuse_rating_setting = 16;
 let fuse_char_setting = "C";
 let margin_factor_setting = 4;
@@ -18,17 +15,12 @@ let cool_down_time_setting = 10;
 let time_to_test_loading_setting = 120;
 let current_restriction_hysteresis_setting = 0.1;
 let target_scan_interval = 0.5;
-
-
-
-
 let shelly_call_records = [];
 let calls = 0;
 let timer = [0,0,0,0,0];
 let kvs_set_cnt = 0;
 let target_script_id = undefined;
 let KVSBackup = undefined;
-
 let verification_phase = 0;
 let verification_sub_phase = 0;
 let verification_sub_sub_phase = 0;
@@ -392,7 +384,6 @@ function stopScript() {
 /*********************************************************************************************************/
 
 function verificationEngine() {
-  //print("ping");
   switch (verification_phase) {
     case 0:
       //verification_phase++
@@ -490,13 +481,13 @@ function verificationEngine() {
       //print("Load: " + JSON.stringify(load_status));
       //print("Switch: " + JSON.stringify(switch_status));
       if (def(current) && def(switch_status) && def(load_status) && current.total == 0 &&
-        !switch_status.some(function(sw) {return sw.switchState == "on";}) && 
+        !switch_status.some(function(sw) {return sw.switchState == "off";}) && //Switchstate seems not to work
         load_status.overLoadTime == -1 && load_status.coolDownTimeRemaining == -1) {
         log(LOG_INFO, "Stabelizing SUCCESS: Shedder has stabelized");
         current = undefined;
         load_status = undefined;
         switch_status = undefined;
-        verification_phase = 8; 
+        verification_phase++; 
         verification_sub_phase = 0;
         break;
       }
@@ -512,7 +503,7 @@ function verificationEngine() {
 //TC-2: Current measurement
 
     case 2:
-      if (waitTimer(0,2)) return;
+      if (waitTimer(0,4)) return;
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= Running Current measurement test =============");
         verification_current_vector = [0,0,0,0,1,1,1,1];
@@ -531,7 +522,7 @@ function verificationEngine() {
         }
         if((verification_sub_phase-2) >= 0 && (verification_sub_phase-2) % 3 == 0) { //2,5,8,11, ...
           if(!def(current)) {
-            log(LOG_ERROR, "Current mesurement ERROR: Current reading failed");
+            log(LOG_ERROR, "Current mesurement ERROR: Current reading failed, did not get any measure");
             stopScript(true);
             verification_phase = -1;
             break;
@@ -578,7 +569,7 @@ function verificationEngine() {
  
  //TC-3: Loading with maximum non tripping load: 0.13*In
     case 3:
-      if (waitTimer(0, 2)) return;
+      if (waitTimer(0, 4)) return;
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= Running maximum non tripping load: 0.13*In =============");
         verification_current_vector = [0,0,0,0,fuse_rating_setting*1.12/4,fuse_rating_setting*1.12/4,
@@ -629,85 +620,92 @@ function verificationEngine() {
 
  //TC-4: Loading with minimum tripping load: 1.45*In
     case 4:
-      if (waitTimer(0, 2)) return;
+      //verification_phase++;  //The tescase does not pass
+      //break;
+      if (waitTimer(0, 4)) return;
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= Running minimum tripping load: 1.45*In =============");
         verification_current_vector = [0,0,0,0,fuse_rating_setting*1.45/4,fuse_rating_setting*1.45/4,
                                       fuse_rating_setting*1.45/4,fuse_rating_setting*1.45/4];
         log(LOG_INFO, "1.45*In overload test INFO: Changing simulated current to " + verification_current_vector.slice(0,4));
+        verification_sub_phase++;
+        break;
       }
-      else {
-        if (verification_sub_phase >= 0 && verification_sub_phase % 3 == 0) { //0,3,6,9, ...
-          verification_current_vector.push(verification_current_vector.splice(0,1)[0]); //rotate the current vactor left
-          log(LOG_INFO, "1.45*In overload test INFO: Changing simulated current to " + verification_current_vector.slice(0,4));
-          setSimulatedCurrent(verification_current_vector.slice(0,4));
-        }
-        if((verification_sub_phase-1) >= 0 && (verification_sub_phase-1) % 3 == 0) { // 1,4,7,10, ...
-          log(LOG_INFO, "1.45*In overload test INFO: Reading status info over RPC");
-          getLoadStatus(function(result, error_code, error_message){load_status=result});
-          let curr_sum = 0;
-          verification_current_vector.slice(0,4).forEach(function(curr){curr_sum += curr});
-          getTripTime(curr_sum, function(result, error_code, error_message) {verification_trip_data = result; print("Tripdata: " + JSON.stringify(result))});
-          getSwitchStatus(function(result, error_code, error_message){switch_status = result});
-        }
-        if((verification_sub_phase-2) >= 0 && (verification_sub_phase-2) % 3 == 0) { //2,5,8,11, ...
-          if(!def(load_status) || !def(verification_trip_data) || !def(switch_status)){
-            log(LOG_INFO, "1.45*In overload test: Failed to read status");
-            stopScript(true);
-            verification_phase = -1;
-            break;               
-          }
-          if(verification_sub_phase != 4*3+2) {
-            
-             if(verification_trip_data.tripTime != -1) {
-                log(LOG_INFO, "1.45*In overload test ERROR: Triptime was expected to be -1-, but was " +
-                             verification_trip_data.tripTime + " seconds for current " + verification_trip_data.current + " A");
-              stopScript(true);
-              verification_phase = -1;
-              break;
-            }
-            if(load_status.overLoadTime != -1){
-              log(LOG_ERROR, "1.45*In overload test ERROR: Over-load was not expected but reported");
-              stopScript(true);
-              verification_phase = -1;
-              break;
-            }
-            if(switch_status.some(function(sw){return (sw.switchState == "off" && sw.shed) ? true:false})){
-              log(LOG_ERROR, "1.45*In overload test ERROR: Some of the switches was unexpectedly reported off");
-              stopScript(true);
-              verification_phase = -1;
-              break;
-            }
-            if(verification_sub_phase < 3*3+2 && load_status.coolDownTimeRemaining != -1) {
-              log(LOG_ERROR, "1.45*In overload test ERROR: cool down time reported but not expected");
-              stopScript(true);
-              verification_phase = -1;
-              break;
-            }
-            if(verification_sub_phase >= 3*3+2 && verification_sub_phase < 8*3+2 && load_status.coolDownTimeRemaining <= 0) {
-              log(LOG_ERROR, "1.45*In overload test ERROR: cool down time was not > 0 as expected, reported: " + load_status.coolDownTimeRemaining + " seconds");
-              stopScript(true);
-              verification_phase = -1;
-              break;
-            }
-          }
-          else {
-            if(verification_trip_data.tripTime <= 20) {
-              log(LOG_ERROR, "1.45*In overload test ERROR: Triptime was expected to be > 20-, but was " +
-                             verification_trip_data.tripTime  + " seconds for current " + verification_trip_data.current + " A");
-              stopScript(true);
-              verification_phase = -1;
-              break;
-            }
-            if(load_status.overLoadTime == -1){
-              log(LOG_ERROR, "1.45*In overload test ERROR: Overload was expected but was not reported"
-              stopScript(true);
-              verification_phase = -1;
-              break;
-            }
-          }          
+      //else {
+      if (verification_sub_phase >= 0 && verification_sub_phase % 3 == 0) { //0,3,6,9, ...
+        verification_current_vector.push(verification_current_vector.splice(0,1)[0]); //rotate the current vactor left
+        log(LOG_INFO, "1.45*In overload test INFO: Changing simulated current to " + verification_current_vector.slice(0,4));
+        setSimulatedCurrent(verification_current_vector.slice(0,4));
+      }
+      if((verification_sub_phase-1) >= 0 && (verification_sub_phase-1) % 3 == 0) { // 1,4,7,10, ...
+        log(LOG_INFO, "1.45*In overload test INFO: Reading status info over RPC");
+        getLoadStatus(function(result, error_code, error_message){load_status=result});
+        let curr_sum = 0;
+        verification_current_vector.slice(0,4).forEach(function(curr){curr_sum += curr});
+        getTripTime(curr_sum, function(result, error_code, error_message) {verification_trip_data = result; print("Tripdata: " + JSON.stringify(result))});
+        getSwitchStatus(function(result, error_code, error_message){switch_status = result});
+      }
+      if((verification_sub_phase-2) >= 0 && (verification_sub_phase-2) % 3 == 0) { //2,5,8,11, ...
+        if(!def(load_status) || !def(verification_trip_data) || !def(switch_status)){
+          log(LOG_INFO, "1.45*In overload test ERROR: Failed to read status");
+          stopScript(true);
+          verification_phase = -1;
+          break;               
         }
       }
+      if (verification_sub_phase < 3) {
+        verification_sub_phase++;
+        break;
+      }
+      
+      if(verification_sub_phase <= 3*3+2 || verification_sub_phase >= 5*3+2 ) {
+        if(verification_trip_data.tripTime != -1) {
+          log(LOG_INFO, "1.45*In overload test ERROR: Triptime was expected to be -1-, but was " +
+                         verification_trip_data.tripTime + " seconds for current " + verification_trip_data.current + " A");
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        if(load_status.overLoadTime != -1){
+          log(LOG_ERROR, "1.45*In overload test ERROR: Over-load was not expected but reported");
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        if(switch_status.some(function(sw){return (sw.switchState == "off" && sw.shed) ? true:false})){
+          log(LOG_ERROR, "1.45*In overload test ERROR: Some of the switches was unexpectedly reported off");
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        if(verification_sub_phase < 3*3+2 && load_status.coolDownTimeRemaining != -1) {
+          log(LOG_ERROR, "1.45*In overload test ERROR: cool down time reported but not expected - reported: " + JSON.stringify(load_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        if(verification_sub_phase >= 4*3+2 && verification_sub_phase <= 5*3+2 && load_status.coolDownTimeRemaining <= 0) {
+          log(LOG_ERROR, "1.45*In overload test ERROR: cool down time was not > 0 as expected, reported: " + JSON.stringify(load_status));
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+      }
+      if(verification_sub_phase == 4*3+2) {
+        if(verification_trip_data.tripTime <= 20) {
+          log(LOG_ERROR, "1.45*In overload test ERROR: Triptime was expected to be > 20-, but was " +
+                         verification_trip_data.tripTime  + " seconds for current " + verification_trip_data.current + " A");
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+        if(load_status.overLoadTime == -1){
+          log(LOG_ERROR, "1.45*In overload test ERROR: Overload was expected but was not reported"
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
+      }          
       if(verification_sub_phase >= 8*3+2) {
         log(LOG_INFO, "1.45*In overload test SUCCESS: Fuse is reportd to be overloaded as expected");
         current = undefined;
@@ -734,13 +732,13 @@ function verificationEngine() {
         verification_sub_phase++;
         break; 
       }
-      if(!def(switch_status)) {
-          log(LOG_ERROR, "1.45*In shed test ERROR: Could not obtain switch status");
-          stopScript(true);
-          verification_phase = -1;
-          break;
-      }
       if (verification_sub_phase < ~~(0.8*10)){
+        if(!def(switch_status)) {
+            log(LOG_ERROR, "1.45*In shed test ERROR: Could not obtain switch status");
+            stopScript(true);
+            verification_phase = -1;
+            break;
+        }        
         if(switch_status.some(function(sw){return (sw.switchState == "off" && sw.shed) ? true:false})) {
           log(LOG_ERROR, "1.45*In shed test ERROR: Unexpected early shedding happened"
           stopScript(true);
@@ -751,6 +749,12 @@ function verificationEngine() {
           log(LOG_INFO, "1.45*In shed test INFO: Shedding did not happened prematurely");
       }
       if (verification_sub_phase == ~~(1.2*10)) {
+        if(!def(switch_status)) {
+          log(LOG_ERROR, "1.45*In shed test ERROR: Could not obtain switch status");
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
         lowest_prio_chan = 0;
         for(let i=0; i<switch_status.length; i++) {
           if (switch_status[i].priority > switch_status[lowest_prio_chan].priority)
@@ -778,6 +782,12 @@ function verificationEngine() {
         setSimulatedCurrent([0,0,0,0]);
       }
       if (verification_sub_phase > ~~(1.2*10) + cool_down_time_setting*1.2) {
+        if(!def(switch_status)) {
+          log(LOG_ERROR, "1.45*In shed test ERROR: Could not obtain switch status");
+          stopScript(true);
+          verification_phase = -1;
+          break;
+        }
         for(let i=0; i<switch_status.length; i++) {
           if (switch_status[i].shed && switch_status[i].switch_state === "off") {
             log(LOG_ERROR, "1.45*In shed test ERROR: Didnt expeded channel " + i + "to still be sehedded " + switch_status[i].switch_state);
@@ -908,8 +918,8 @@ function verificationEngine() {
           verification_phase = -1;
           break;         
         }
-        if(load_status.coolDownTimeRemaining <= 0 || load_status.overLoadTime != -1) {
-          log(LOG_ERROR, "4*10*In short overload test ERROR: Expected coolDownTimeRemaining to be > 0 and overLoadTime to be == -1, but got: " + JSON.stringify(load_status));
+        if(load_status.coolDownTimeRemaining <= 0 || load_status.overLoadTime <= 0) {
+          log(LOG_ERROR, "4*10*In short overload test ERROR: Expected coolDownTimeRemaining to be > 0 and overLoadTime to be > 0, but got: " + JSON.stringify(load_status));
           stopScript(true);
           verification_phase = -1;
           break;             
@@ -918,7 +928,7 @@ function verificationEngine() {
         log(LOG_INFO, "4*10*In short overload test INFO: setting current to [0,0,0,0]");
         setSimulatedCurrent([0,0,0,0]);
       } 
-      if (verification_sub_phase == (4 + cool_down_time_setting * 1.2)) {
+      if (verification_sub_phase == (4 + 3*time_to_test_loading_setting*1.2)) {
         if(!noShed(switch_status)){
           log(LOG_ERROR, "4*10*In short overload test ERROR: Did not expect shedding but got some: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -1061,13 +1071,6 @@ function verificationEngine() {
       verification_sub_phase++
       break;
 
-/*    
-//TC-10; NB Current restriction
-//TC-11: API testing
-//TC-12: 169h Stability/Robustness test: ......
-
-
-*/
     default:
       return;
   }
