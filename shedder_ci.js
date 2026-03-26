@@ -182,23 +182,29 @@ function backupKVS(cb) {
 function KVSSet(key_values, cb) {
   if(kvs_set_cnt != 0)
     return -1;
-  queueShellyCall("KVS.GetMany", {match:"*"}, 
-                  function (result, error_code, error_message, params) {
+  //print("KVS1 " + JSON.stringify(key_values));
+  queueShellyCall("KVS.GetMany", {match:"*"},
+                  function(result, error_code, error_message, params) {
                     for(key in params.key_values) {
-                      kvs_set_cnt++;
-                      if(result.key != params.key_values.key) {
-                        queueShellyCall("KVS.Set", key ,
-                                        function(result, error_code, error_message, cb) {
-                                          kvs_set_cnt--;
-                                          if(!kvs_set_cnt)
-                                            cb();
-                                          return;
-                                        },
-                                        params.cb;
-                                        );
+                      for(let i=0; i<result.items.length; i++) {
+                        if (key === result.items[i].key && result.items[i].value != params.key_values[key]) {
+                          print("setting key " + key + " to value: " + params.key_values[key]);
+                          kvs_set_cnt++;
+                          queueShellyCall("KVS.Set", {key:key, value:params.key_values[key]},
+                                          function(result, error_code, error_message, cb) {
+                                            //print("result: " + result + " Error message: " + error_message);
+                                            kvs_set_cnt--;
+                                            if(!kvs_set_cnt && def(cb))
+                                              cb();
+                                            return;
+                                          },
+                                          params.cb
+                                          );
+                        break;
+                        }
                       }
-                    }
-                  return;
+                    }  
+                    return;
                   },
                   {cb:cb, key_values:key_values}
                   );
@@ -215,6 +221,18 @@ function setCurrentRestriction(current_restriction, cb) {
                   },
                   cb
                   );
+}
+
+
+function factoryReset(cb) {
+  queueShellyCall("HTTP.GET", {url:"http://localhost/script/" + target_script_id +
+                              "/shedder?factory_reset_to_default"}, 
+                  function (result, error_code, error_message, cb) {
+                    if(def(cb))
+                      cb(result, error_code, error_message);
+                  },
+                  cb
+                  );  
 }
 
 
@@ -332,19 +350,21 @@ function getPrioChannel(switch_status, prio){
 }
 
 function noShed(switch_status, perfect_match, channels) {
-  if (!def(channels))
-    return switch_status.some(function(sw){return (sw.switchState == "off" && sw.shed) ? false:true});
-  else {
-    for (let i=0; i<switch_status.length; i++) {
-      if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "on")
-        break;
-      if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "off")
-        return false;
-      else if (perfect_match && switch_status[i].shed && switch_status[i].switch_state === "on")
-        return false;
-    }
-    return true;  
+  if (!def(channels)) {
+    channels = new Array(switch_status.length);
+    for (let i=0; i<switch_status.length; i++)
+      channels[i] = i;
+    perfect_match = true;
   }
+  for (let i=0; i<switch_status.length; i++) {
+    if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "on")
+      continue;
+    if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "off")
+      return false;
+    else if (perfect_match && switch_status[i].shed && switch_status[i].switch_state === "on")
+      return false;
+  }
+  return true;  
 }
 
 function shed(switch_status, perfect_match, channels) {
@@ -353,7 +373,7 @@ function shed(switch_status, perfect_match, channels) {
   else {
     for (let i=0; i<switch_status.length; i++) {
       if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "off")
-        break;
+        continue;
       else if(includes(channels, switch_status[i].id) && switch_status[i].switch_state === "on")
         return false;
       else if (perfect_match && switch_status[i].shed && switch_status[i].switch_state === "off")
