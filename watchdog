@@ -1,0 +1,59 @@
+// This script tries to execute HTTP GET requests within a set time, against a set of endpoints
+// After certain number of failures the script resets the shelly
+
+let CONFIG = {
+  scripts: {"shedder":null},
+  httpTimeout: 10,
+  check_time: 10,
+  consecutive_errs: 3
+};
+
+let errors = {};
+let device_errors = 0;
+
+function checkEndpoints() {
+    Shelly.call(
+      "Script.List", null,
+      function (result, error_code, error_message) {
+        if(result == undefined) {
+          print("watchdog: " + "Device not responding");
+          device_errors++;
+          if(device_errors>=CONFIG.consecutive_errs) {
+            print("watchdog: " + "Rebooting device");
+            Shelly.call("Shelly.Reboot");
+            device_errors = 0;
+          }
+          return;
+        }
+        for(let i=0; i<result.scripts.length; i++) {
+          if(result.scripts[i].name in CONFIG.scripts) {
+            if(!result.scripts[i].running) {
+              print("watchdog: " + "script " + result.scripts[i].name + " is not running");
+              errors[CONFIG.scripts[result.scripts[i].name]]++;
+              if(errors[CONFIG.scripts[result.scripts[i].name]]>=CONFIG.consecutive_errs) {
+                print("watchdog: " +  "restarting script " + result.scripts[i].name);
+                Shelly.call("Script.Start", {id:CONFIG.scripts[result.scripts[i].name]});
+                errors[CONFIG.scripts[result.scripts[i].name]] = 0;
+              }
+            }
+            else {
+              errors[CONFIG.scripts[result.scripts[i].name]] = 0;
+            }
+          }
+        }
+      },
+      );
+}
+
+print("Start watchdog timers");
+Shelly.call("Script.List", null, 
+          function (result, error_code, error_message) {
+            for(let i=0; i<result.scripts.length; i++) {
+              if(result.scripts[i].name in CONFIG.scripts) {
+                CONFIG.scripts[result.scripts[i].name] = result.scripts[i].id;
+                errors[result.scripts[i].id] = 0;
+              }
+            }
+          }
+          );
+pingTimer = Timer.set(CONFIG.check_time* 1000, true, checkEndpoints);
