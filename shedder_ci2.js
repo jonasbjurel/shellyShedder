@@ -494,7 +494,7 @@ function verificationEngine() {
         current = undefined;
         load_status = undefined;
         switch_status = undefined;
-        verification_phase = 11; 
+        verification_phase = 9; 
         verification_sub_phase = 0;
         break;
       }
@@ -730,6 +730,43 @@ function verificationEngine() {
         factoryReset();
       }
       
+      if (verification_sub_phase == 4) {
+        print("Checking 1");
+        Shelly.call("Script.List", null,
+        function(result, error_code, error_message){
+          print(JSON.stringify(result));
+          for(let i=0; i<result.scripts.length;i++){
+            if(result.scripts[i].name = "shedder") {
+              if(result.scripts[i].running) {
+                log(LOG_ERROR, "Factory reset ERROR: Script did not stop");
+                stopScript(true);
+                verification_phase = -1;
+              }
+              else {
+                log(LOG_ERROR, "Factory reset ERROR: Script stopped as expected");
+              }
+            }
+          }
+        }
+        );
+        print("Checking 2");
+
+        Shelly.call("KVS.Get", {key:"scan_interval"},
+        function(result, error_code, error_message){
+          print(JSON.stringify(result));
+          /*for(let i=0; i<result.scripts.length;i++){
+            if(result.scripts[i].name = "shedder") {
+              if(result.scripts[i].running) {
+                log(LOG_ERROR, "Factory reset ERROR: Script did not stop");
+                stopScript(true);
+                verification_phase = -1;
+              }
+            }
+          }*/
+        }
+        );     
+      }
+      
       if (verification_sub_phase == 11) {
         //log(LOG_INFO, "Factory reset INFO: Starting a factory reset");
         current = undefined;
@@ -759,6 +796,12 @@ function verificationEngine() {
       return;
   }
 }
+
+/*********************************************************************************************************/
+/*                                              main/init                                                */
+/*********************************************************************************************************/
+Shelly.addEventHandler(shellyEventCb);
+Timer.set(scan_interval*1000, true, verificationEngine);
 
 /*********************************************************************************************************/
 /*                                              main/init                                                */
