@@ -47,6 +47,7 @@ let first_to_last_to_shed = [
 let time_to_test_loading_setting = 60;
 let scan_interval = 0.5;
 let simulation = true;
+let simulation_act = true;
 let simulated_current = new Array(first_to_last_to_shed.length);
 for (let i = 0; i < first_to_last_to_shed.length; i++) simulated_current[i] = 0;
 let current_restriction_setting = -1;
@@ -177,6 +178,7 @@ function shedderEndPoint(req, res) {
     case "simulation":
       if(key_values.simulation === "true") {
         simulation = true;
+		simulation_act = true;
         log(LOG_INFO, "Simulation started");
         res.body = "Simulation started"
         res.code = 200;
@@ -301,12 +303,12 @@ function shedderEndPoint(req, res) {
     default:
       break;
   }
-  res.send();
-  
+  res.send();  
 }
+
 /* function log(severity, log_entry);
  * Log entries to console according to "log_level_setting" which can be any of
- *  LOG_VERBOSE, LOG_INFO, LOG_WARN, LOG_ERROR and LOG_CRITICAL */
+ * LOG_VERBOSE, LOG_INFO, LOG_WARN, LOG_ERROR and LOG_CRITICAL */
 function log(severity, log_entry) {
   if (severity >= log_level_setting)
     print(LOG_PREFIX + ": " + log_entry);
@@ -352,7 +354,6 @@ function execQueuedShellyCalls(event) {
     log(LOG_VERBOSE, "Max calls reached, pausing calls");
   }
 }
-
 
 /* function shellyCallQueueEmpty()
  * returns true if the call queue is empty, otherwise false */ 
@@ -401,8 +402,6 @@ function shellyEventCb(event) {
   }
 }
 
-
-
 /*********************************************************************************************************/
 
 
@@ -442,7 +441,6 @@ function getTripTime(current) {
   }
   return fuse_load_trip_time_table[fuse_load_trip_time_table.length].trip_time;
 }
-
 
 /* mustShed(current();
  * Checks if the next channel in priority order must be turned off in order to avoid that the group 
@@ -485,7 +483,6 @@ function mustShed(current) {
   return false;
 }
 
-
 /* function canLoad(current);
  * Provides an indication whether the group fuse can take more load even if so little.
  * After an overload situation, the fuse is not allowed to take more load until the 
@@ -517,7 +514,6 @@ function canLoad(current) {
   cool_down_time_remaining -= scan_interval * (overrun_cnt + 1);
   return false;
 }
-
 
 /* function get_current();
  * Provides the aggregated current through the group fuse to be protected, I.e. the sum of the 
@@ -576,39 +572,45 @@ function get_current() {															        // TODO, must be changed to async
   return total_current;
 }
 
-
 /* function turn()
- * Turns the switch first_to_last_to_shed[idx] on or off */
+ * Turns the relay first_to_last_to_shed[idx] on or off */
 function turn(idx, dir) {
-  o = first_to_last_to_shed[idx];
-  log(LOG_INFO, "Turning switch " + o.id + " to " + dir);
+  log(LOG_INFO, "Turning switch " + first_to_last_to_shed[idx].id + " to " + dir);
   on = dir == "on" ? true : false;
-  switch_state[o.id] = on;
-  if(simulation)
+  switch_state[first_to_last_to_shed[idx].id] = on;
+  if (simulation_act)
 	return;
-  if (def(o.gen)) {
-    let cmd;
-    if (o.gen == 1) cmd = o.type + "/" + o.id.toString() + "?turn=" + dir;
-    else cmd = "rpc/" + o.type + ".Set?id=" + o.id.toString() + "&on=" + on;
-    queueShellyCall("HTTP.GET", { url: "http://" + o.addr + "/" + cmd }, turnCallBack, {idx});
+  if (def(first_to_last_to_shed[idx].on_url) && first_to_last_to_shed[idx].off_url) {
+    if (def(first_to_last_to_shed[idx].on_url) && dir == "on")
+      queueShellyCall("HTTP.GET", { url: first_to_last_to_shed[idx].on_url }, turnCallBack, {idx});
+    if (def(first_to_last_to_shed[idx].off_url) && dir == "off")
+      queueShellyCall("HTTP.GET", { url: first_to_last_to_shed[idx].off_url }, turnCallBack, {idx});
+	return;
   }
-  if (def(o.on_url) && dir == "on")
-    queueShellyCall("HTTP.GET", { url: o.on_url }, turnCallBack, {idx});
-  if (def(o.off_url) && dir == "off")
-    queueShellyCall("HTTP.GET", { url: o.off_url }, turnCallBack, {idx});
+  if (first_to_last_to_shed[idx].addr === "localhost") {
+	queueShellyCall("Switch.Set", {on:on, id:first_to_last_to_shed[idx].id}, turnCallBack, {idx});
+	return;
+  }
+  if (def(first_to_last_to_shed[idx].gen)) {
+    let cmd;
+    if (first_to_last_to_shed[idx].gen == 1) 
+	  cmd = first_to_last_to_shed[idx].type + "/" + first_to_last_to_shed[idx].id.toString() + "?turn=" + dir;
+    else
+	  cmd = "rpc/" + first_to_last_to_shed[idx].type + ".Set?id=" + first_to_last_to_shed[idx].id.toString() + "&on=" + on;
+    queueShellyCall("HTTP.GET", { url: "http://" + first_to_last_to_shed[idx].addr + "/" + cmd }, turnCallBack, {idx});
+	return;
+  }
+  log(LOG_ERROR, "Failed to operate relay - first_to_last_to_shed id: " + idx + " - configuration error");
 }
-
 
 /* function turnCallBack()
  * Callback function from turn() */
 function turnCallBack(result, error_code, error_message, idx) {
   if (error_code != 0);
-    log(LOG_ERROR, "failed to operate switch " + idx + "Error: " + error_message);
-    // TBD: currently we don't have any retry logic
+    log(LOG_ERROR, "Failed to operate relay - first_to_last_to_shed id:  " + idx + " - Error: " + error_message);
   else
-    log(LOG_INFO, "switch " + idx + " operated successfully");
+    log(LOG_INFO, "Relay - first_to_last_to_shed id: " + idx + " operated successfully");
 }
-
 
 /* function updateSettingsFromKVS();
  * This functions sets the script variables from the Shelly Key-Value store which can be user set. */
@@ -632,7 +634,7 @@ function updateSettingsFromKVS(){
               log(LOG_INFO, "Fuse rating changed to: " + result.items[KVS].value);
             }
             break;
-            
+
           case "fuse_char_setting":
             if (fuse_char_setting != result.items[KVS].value) {
               fuse_char_setting = result.items[KVS].value;
@@ -683,14 +685,14 @@ function updateSettingsFromKVS(){
               log(LOG_INFO, "Current restriction hysteresis changed to : " + result.items[KVS].value);
             }
             break;
-            
+
           case "overload_webhook_uri_setting":
             if (overload_webhook_uri_setting != result.items[KVS].value) {
               overload_webhook_uri_setting = result.items[KVS].value;
               log(LOG_INFO, "Overload Webhook URI set to  " + result.items[KVS].value);
             }
             break;            
-            
+ 
           case "log_level_setting":
             if (log_level_setting!= result.items[KVS].value) {
               log_level_setting = result.items[KVS].value;
@@ -742,7 +744,6 @@ function createKV(k, v, over_write) {
     }
   );
 }
-
 
 /* function deleteKV(k);
  * Deletes Key-value store entries */
@@ -920,7 +921,11 @@ function scanPower() {
   running = false;
   return;
 }
+
 /*********************************************************************************************************/
+
+
+
 
 /*********************************************************************************************************/
 /*                                              main/init                                                */
@@ -930,6 +935,5 @@ updateKvs();
 HTTPServer.registerEndpoint("shedder", shedderEndPoint);
 Shelly.addEventHandler(shellyEventCb); 
 Timer.set(scan_interval * 1000, true, scanPower);
-
 
 /*********************************************************************************************************/
