@@ -515,40 +515,37 @@ function canLoad(current) {
   return false;
 }
 
-/* function get_current();
+/* function get_current(function, params);
  * Provides the aggregated current through the group fuse to be protected, I.e. the sum of the 
  * current through all channels. If in simulation mode, the current is the aggregate of the
  * "simulated_current[]" array elements. */
-function get_current() {															        // TODO, must be changed to async
-  //print("Simulated current: " + Number(simulated_current[0]) + "," + Number(simulated_current[1]) + "," + Number(simulated_current[2]) + "," + Number(simulated_current[3]));
-  //print("switch_state: " + switch_state);
+function get_current(cb, params) {															// TODO, must be changed to async
   let previous_current_ten_percent_deviation = 0;											// in order to fetch from NW API
   let total_current = 0;
-  if (simulation) {
-    //print("switch state: " + switch_state);
-
+  if (simulation) {																			// Simulation of current
     for (let i = 0; i < first_to_last_to_shed.length; i++) {
-      if (switch_state[first_to_last_to_shed[i].id] == true && first_to_last_to_shed[i].measure) {
-          //print("Measuring");
-          last_known_current[first_to_last_to_shed[i].id] = Number(simulated_current[first_to_last_to_shed[i].id]);
-          current_vector[first_to_last_to_shed[i].id] = Number(simulated_current[first_to_last_to_shed[i].id]);
+      if (switch_state[first_to_last_to_shed[i].id] && first_to_last_to_shed[i].measure) {
+        last_known_current[first_to_last_to_shed[i].id] = Number(simulated_current[first_to_last_to_shed[i].id]);
+        current_vector[first_to_last_to_shed[i].id] = Number(simulated_current[first_to_last_to_shed[i].id]);
+		get_current_immediate_cb(Number(simulated_current[first_to_last_to_shed[i].id]), i, cb, params);
       }
       else {
-        //print("Dont measure");
         current_vector[first_to_last_to_shed[i].id] = 0;
+		get_current_immediate_cb(Number(0, i, cb, params);
       }
     }
-    //print("current vector: " + current_vector);
+    return;
+	// CAME TO HERE IN REFACTORING!
   }
-  else { //FIX!!!!
+  else { 																					// No simulation of current
     for (let i = 0; i < let first_to_last_to_shed.length; i++) {
-      if (first_to_last_to_shed[i].addr == "localhost" && first_to_last_to_shed[i].measure){
+      if (first_to_last_to_shed[i].addr == "localhost" && first_to_last_to_shed[i].measure) { // local host - sychronous measurements
       	current_vector[first_to_last_to_shed[i].id] = Shelly.getComponentStatus("switch:" + first_to_last_to_shed[i].id).current;
       	if (idx_next_to_toggle_off <= i) 
 	      last_known_current[i] = current_vector[i];
       }
-      else if ( first_to_last_to_shed[i].measure)
-	queueShellyCall("HTTP.GET", { url: "http://" + first_to_last_to_shed[i].addr +
+      else if ( first_to_last_to_shed[i].measure)											// Remote host asynchronous measurement 
+		queueShellyCall("HTTP.GET", { url: "http://" + first_to_last_to_shed[i].addr +
                   "/rpc/Shelly.GetStatus?switch:" + i }, 
 			function(result, error_code, error_message, idx) {
 			  if( def( result )) {
@@ -570,6 +567,16 @@ function get_current() {															        // TODO, must be changed to async
     previous_current_ten_percent_deviation = total_current;
   }
   return total_current;
+}
+
+function get_current_immediate_cb(chanel_current, idx, cb, params) {
+  current_vector[idx] = chanel_current;
+  last_known_current[idx] = ?
+  if (idx === 0) {
+    let total_current = 0;
+	for (.....
+	// Refactoring came to here!
+  }
 }
 
 /* function turn()
