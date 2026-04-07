@@ -519,63 +519,66 @@ function canLoad(current) {
  * Provides the aggregated current through the group fuse to be protected, I.e. the sum of the 
  * current through all channels. If in simulation mode, the current is the aggregate of the
  * "simulated_current[]" array elements. */
-function get_current(cb, params) {															// TODO, must be changed to async
-  let previous_current_ten_percent_deviation = 0;											// in order to fetch from NW API
-  let total_current = 0;
-  if (simulation) {																			// Simulation of current
+function get_current(cb, params) {
+  if (measurement_ongoing) {
+	//Counter increase
+	//log
+	return -1;
+  }
+  measurement_ongoing = true;
+  remaining_measurements = first_to_last_to_shed.length;
+  measurement_session_id++;
+  if (simulation) {
     for (let i = 0; i < first_to_last_to_shed.length; i++) {
-      if (switch_state[first_to_last_to_shed[i].id] && first_to_last_to_shed[i].measure) {
-        last_known_current[first_to_last_to_shed[i].id] = Number(simulated_current[first_to_last_to_shed[i].id]);
-        current_vector[first_to_last_to_shed[i].id] = Number(simulated_current[first_to_last_to_shed[i].id]);
-		get_current_immediate_cb(Number(simulated_current[first_to_last_to_shed[i].id]), i, cb, params);
+      if (switch_state[first_to_last_to_shed.length-i] && first_to_last_to_shed[i].measure) {
+		get_current_immediate_cb(Number(simulated_current[first_to_last_to_shed.length-i]), 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
       }
       else {
-        current_vector[first_to_last_to_shed[i].id] = 0;
-		get_current_immediate_cb(Number(0, i, cb, params);
+		get_current_immediate_cb(Number(0, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
       }
     }
-    return;
-	// CAME TO HERE IN REFACTORING!
+    return 0
   }
   else { 																					// No simulation of current
     for (let i = 0; i < let first_to_last_to_shed.length; i++) {
-      if (first_to_last_to_shed[i].addr == "localhost" && first_to_last_to_shed[i].measure) { // local host - sychronous measurements
-      	current_vector[first_to_last_to_shed[i].id] = Shelly.getComponentStatus("switch:" + first_to_last_to_shed[i].id).current;
-      	if (idx_next_to_toggle_off <= i) 
-	      last_known_current[i] = current_vector[i];
-      }
-      else if ( first_to_last_to_shed[i].measure)											// Remote host asynchronous measurement 
-		queueShellyCall("HTTP.GET", { url: "http://" + first_to_last_to_shed[i].addr +
-                  "/rpc/Shelly.GetStatus?switch:" + i }, 
-			function(result, error_code, error_message, idx) {
-			  if( def( result )) {
-			    current_vector[idx] = result.current;
-			    if (idx_next_to_toggle_off <= i) 
-	  		      last_known_current[i] = current_vector[i];
-			  }
-      }, 
-      i);
+      if (first_to_last_to_shed[i].addr == "localhost") {
+		  if (first_to_last_to_shed[i].measure)
+		    get_current_immediate_cb(Shelly.getComponentStatus("switch:" + first_to_last_to_shed[i].id).current, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
+		  else
+		    get_current_immediate_cb(0, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
+	  }
+      else {																			// Remote host asynchronous measurement
+		if (first_to_last_to_shed[i].measure)
+		  queueShellyCall("HTTP.GET", {url: "http://" + first_to_last_to_shed[i].addr + "/rpc/Shelly.GetStatus?switch:" + i}, get_current_immediate_cb, {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
+		else
+		  get_current_immediate_cb(0, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params}); 
+	  }
     }
   }
-  for (let i = 0; i < current_vector.length; i++)
-    total_current += current_vector[i];
-  if (previous_current_ten_percent_deviation && 
-      (total_current > previous_current_ten_percent_deviation*1.1 ||
-      total_current <= previous_current_ten_percent_deviation*0.9)) {
-    log(LOG_INFO, "Current has changed more than 10% since last report, from: " 
-        + previous_current_ten_percent_deviation + " A - to: " + total_current + " A");
-    previous_current_ten_percent_deviation = total_current;
-  }
-  return total_current;
+  return 0;
 }
 
-function get_current_immediate_cb(chanel_current, idx, cb, params) {
-  current_vector[idx] = chanel_current;
-  last_known_current[idx] = ?
-  if (idx === 0) {
-    let total_current = 0;
-	for (.....
-	// Refactoring came to here!
+function get_current_immediate_cb(chanel_current, error, error_msg, params) {
+  remaining_measurements--;
+  if (def(error) && error || !def(chanel_current) {
+	//Tricky failure resolution - use session Id
+	//log
+	//Counter increase
+	  ......
+	return;
+  }
+  if (params.measurement_session_id != measurement_session_id) {
+    Hide this from the CB
+	return;
+  }
+  parse results based on switch state, generation, local or remote measurements, etc...
+	
+  current_vector[first_to_last_to_shed.length-params.idx] = chanel_current;
+  if (switch_state[first_to_last_to_shed.length-params.idx])
+	last_known_current[first_to_last_to_shed.length-params.idx] = chanel_current;
+  if (!remaining_measurements){
+	  params.cb(current_vector.reduce((total, current) => total + current, 0), 0, "", params);
+	  measurement_ongoing = 0;
   }
 }
 
