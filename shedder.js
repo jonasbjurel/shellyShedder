@@ -92,6 +92,7 @@ let cool_logging = false;
 let shelly_call_records = [];
 let running = false;
 let overrun_cnt = 0;
+let consecutive_overrun_cnt = 0;
 let last_overrun = false;
 let coasting_report_cnt = 0;
 let total = 0;
@@ -449,7 +450,7 @@ function getTripTime(current) {
  * and applies a margin as defined by "margin_factor_setting" */
 function mustShed(current) {
   //print("overload time: " + over_load_time );
-  //print("overrun_cnt :" + overrun_cnt )
+  //print("consecutive_overrun_count :" + consecutive_overrun_count);
   if (current_restriction_setting != -1 && current > current_restriction_setting) {
     log(LOG_INFO, "The total curret exceeds northbound ordered current restriction " + 
         current + " A > " + current_restriction_setting + "A");
@@ -467,7 +468,7 @@ function mustShed(current) {
     log(LOG_INFO, "Fuse is overloaded at " + current + " A, it will trip in " + current_trip_time +
         " seconds, shedding will start in " + current_trip_time/margin_factor_setting  + " seconds");
   }
-  else over_load_time += scan_interval * (overrun_cnt + 1);
+  else over_load_time += scan_interval * (consecutive_overrun_cnt + 1);
   if (current_trip_time < min_trip_time) {
     min_trip_time = current_trip_time;
     log(LOG_INFO, "Fuse overload escalation, now at " + current + " A, it will trip in " +
@@ -475,7 +476,7 @@ function mustShed(current) {
         " seconds");  
   }
   if (over_load_time > min_trip_time/margin_factor_setting ||
-     (min_trip_time/margin_factor_setting) - over_load_time < scan_interval * (overrun_cnt + 1)) {
+     (min_trip_time/margin_factor_setting) - over_load_time < scan_interval * (consecutive_overrun_cnt + 1)) {
     log(LOG_INFO, "Fuse overloaded with " + current + " A for " + over_load_time +
         " seconds, shedding will start");
     return true;
@@ -503,7 +504,7 @@ function canLoad(current) {
                   " A, but needs to cool down for " + cool_down_time_remaining +
                   " seconds before any further loading is allowed");
   }
-  if (cool_down_time_remaining <= scan_interval * (overrun_cnt + 1)) {
+  if (cool_down_time_remaining <= scan_interval * (consecutive_overrun_cnt + 1)) {
     if(cool_down_time_remaining != -1) {
       log(LOG_INFO, "The fuse that was previously overloaded " + 
                 "has been cooled down for further loading");
@@ -511,20 +512,30 @@ function canLoad(current) {
     cool_down_time_remaining = -1;
     return true;
   }
-  cool_down_time_remaining -= scan_interval * (overrun_cnt + 1);
+  cool_down_time_remaining -= scan_interval * (consecutive_overrun_cnt + 1);
   return false;
 }
 
-/* function get_current(function, params);
+let measurement_ongoing = false;
+let remaining_measurements = 0;
+let measurement_session_id = 0;
+let measurement_timeout_cnt = 5;
+let measurement_timer = undefined;
+let measurement_busy_cnt = 0;
+let measurement_fail_cnt = 0;
+let measurement_timeout_cnt = 0;
+
+/* function get_current(cb , params);
  * Provides the aggregated current through the group fuse to be protected, I.e. the sum of the 
  * current through all channels. If in simulation mode, the current is the aggregate of the
  * "simulated_current[]" array elements. */
 function get_current(cb, params) {
   if (measurement_ongoing) {
-	//Counter increase
-	//log
+	measurement_busy_cnt++;
+	log(LOG_WARN, "Current measurement service is busy");
 	return -1;
   }
+  measurement_timer = Timer.set( measurement_timeout * 1000, false, getCurrentTimeout, {cb: cb, params: params});
   measurement_ongoing = true;
   remaining_measurements = first_to_last_to_shed.length;
   measurement_session_id++;
@@ -560,28 +571,35 @@ function get_current(cb, params) {
 
 function get_current_immediate_cb(chanel_current, error, error_msg, params) {
   remaining_measurements--;
-  if (def(error) && error || !def(chanel_current) {
-	//Tricky failure resolution - use session Id
-	//log
-	//Counter increase
-	  ......
+  if ((def(error) && error || !def(chanel_current) && params.sessionId == measurement_session_id) {
+	measurement_ongoing = false;
+	log(LOG_ERROR, "Current measurement failed for idx: " + params.idx);
+	measurement_fail_cnt++;
 	return;
   }
   if (params.measurement_session_id != measurement_session_id) {
-    Hide this from the CB
 	return;
   }
-  parse results based on switch state, generation, local or remote measurements, etc...
-	
+  if (!measurement_ongoing)
+	return;
   current_vector[first_to_last_to_shed.length-params.idx] = chanel_current;
   if (switch_state[first_to_last_to_shed.length-params.idx])
 	last_known_current[first_to_last_to_shed.length-params.idx] = chanel_current;
-  if (!remaining_measurements){
+  if (!remaining_measurements) {
+	  Timer.delete(measurement_timer);
+	  measurement_ongoing = false;
 	  params.cb(current_vector.reduce((total, current) => total + current, 0), 0, "", params);
-	  measurement_ongoing = 0;
+
   }
 }
 
+function getCurrentTimeout(params) {
+	log(LOG_ERROR, "Current measurement time-out");
+	measurement_timeout_cnt++;
+    measurement_ongoing = false;
+	params.cb(undefined, -1, "Current measurement time-out", params.params);
+}
+	
 /* function turn()
  * Turns the relay first_to_last_to_shed[idx] on or off */
 function turn(idx, dir) {
@@ -814,44 +832,58 @@ function nextIdxToLoad(){
    return idx_next_to_toggle_off_tmp;
 }
 
-/* function scanPower()
+/* function scanCurrent()
  * Main scan loop, gets invoked every "scan_interval" seconds. */
-function scanPower() {
+function scanCurrent() {
   current_scan_time  += scan_interval;
+  if (!(current_scan_time % 10)) 
+    checkKVS();
   if (!last_overrun)
-	overrun_cnt = 0;
+	consecutive_overrun_cnt = 0;
   if (running) {
     last_overrun = true;
     overrun_cnt++;
-    log(LOG_WARN, "Overrun, count is: " + overrun_cnt++);
-    running = false;
+	consecutive_overrun_cnt++;
+    log(LOG_WARN, "Overrun - Overrun count is: " + overrun_cnt + " and consecutive overrun count is: " + consecutive_overrun_cnt);
     return;
   }
   running = true;
-  last_overrun = false;
-  if (!(current_scan_time % 10)) 
-    checkKVS();
-  total = get_current();
-  time_to_test_loading -= scan_interval;
-  if (idx_next_to_toggle_off && time_to_test_loading <= 0) {
-    //print(last_known_current);
-    last_known_current[first_to_last_to_shed[nextIdxToLoad()].id] = 0;
-    time_to_test_loading = time_to_test_loading_setting;
-    log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
-    //print(last_known_current);
-    //print(nextIdxToLoad());
-    //print(first_to_last_to_shed[nextIdxToLoad()].id);
+  if (get_current(processCurrentMeasurements) {
+    last_overrun = true;
+    overrun_cnt++;
+	consecutive_overrun_cnt++;
+    log(LOG_ERROR, "Measure failure - did not expect this - Overrun count is: " + overrun_cnt + " and consecutive overrun count is: " + consecutive_overrun_cnt");
+	running = false;
+	return
   }
+}
+
+function processCurrentMeasurements(current, err_code, err_msg) {
+  if (err_code) {
+    last_overrun = true;
+    overrun_cnt++;
+    consecutive_overrun_cnt++;
+    running = false;
+    log(LOG_ERROR, "Measure failure - " + err_msg);
+  }
+  last_overrun = false;
+  total = current;
   let must_shed = mustShed(total);
   let can_load = canLoad(total);
+  time_to_test_loading -= scan_interval * (consecutive_overrun_cnt + 1);
+  if (idx_next_to_toggle_off && time_to_test_loading <= 0) {
+    last_known_current[first_to_last_to_shed.length-nextIdxToLoad()] = 0;
+    time_to_test_loading = time_to_test_loading_setting;
+    log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
+  }
   if (idx_next_to_toggle_off < first_to_last_to_shed.length & must_shed) {
     direction = "shedding";
     time_to_test_loading = time_to_test_loading_setting;
   }
   else if (idx_next_to_toggle_off && can_load && total + 
-           last_known_current[first_to_last_to_shed[nextIdxToLoad()].id] <= fuse_rating_setting) {
-      //print("loading " + last_known_current + " " + total + " " + first_to_last_to_shed[idx_next_to_toggle_off-1].id);
-      direction = "loading";
+           last_known_current[first_to_last_to_shed.length-nextIdxToLoad] <= fuse_rating_setting) {
+    direction = "loading";
+	time_to_test_loading = time_to_test_loading_setting;
   }
   else {
     direction = "coasting";
@@ -866,19 +898,33 @@ function scanPower() {
       }
       if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
         if (overload_webhook_uri_setting != "" && hostname_setting != "") {
-          print("SENDING A WEBHOOK for idx: " + idx_next_to_toggle_off);
-          /*queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
-                          {hostname: hostname_setting, state: "Loading", current: total,
-                          next_to_discconect: first_to_last_to_shed[idx_next_to_toggle_off].id}}, 
-		                  function(result, error_code, error_message, idx) {
-			                return;
-                          }
-                          );*/
-        }
-        log(LOG_INFO, "Loading channel " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before loading is: " +
+          queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
+                          {hostname: hostname_setting, state: "Loading",
+	   		  			   fuseRating: fuse_rating_setting,
+						   fuseCharacteristics: char_setting,
+						   fuseCurrent: total,
+						   currentRestriction: (current_restriction_setting == -1 ? false:true),
+						   noOfSheddedChanels: idx_next_to_toggle_off,
+						   disconnected: null,
+						   reconnected: {idx: idx_next_to_toggle_off, 
+									     deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+										 deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id
+										 estimatedReconnectCurrent:last_known_current[first_to_last_to_shed.length-idx_next_to_toggle_off]}} : null ),
+			  			   nextToDisconnect: null,
+						   nextToReconnect: (idx_next_to_toggle_off>0 ? {idx: idx_next_to_toggle_off-1, 
+						 		    	     deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off-1].addr,
+										     deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off-1].id} : null};
+						   function(result, error_code, error_message, params) {
+			  			     if (error_code)
+							   log(LOG_WARN, "Failed to send loading WEB-hook to endpoint: " + params.uri + " - " + error_message);
+			  			     return;
+            			   },
+		   				   {uri: overload_webhook_uri_setting}
+		   				   );
+	    }
+        log(LOG_INFO, "Loading global idx channel: " + idx_next_to_toggle_off + " with local relay id: " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before loading is: " +
                        total +" A, expected current after loading is: " + 
                        (total + last_known_current[first_to_last_to_shed[idx_next_to_toggle_off].id]) + " A");
-        
         turn(idx_next_to_toggle_off, "on");
       }
       else 
@@ -890,18 +936,35 @@ function scanPower() {
     if (idx_next_to_toggle_off != first_to_last_to_shed.length) {
       if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
         if (overload_webhook_uri_setting != "" && hostname_setting != "") {
-          print("SENDING A WEBHOOK for idx: " + idx_next_to_toggle_off);
-          /*queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
-                          {hostname: hostname_setting, state: "Shedding", current: total,
-                          next_to_discconect: first_to_last_to_shed[idx_next_to_toggle_off].id}}, 
-			              function(result, error_code, error_message) {
-			                return;
-                          }
-                          );*/
-        }
-        log(LOG_INFO, "Shedding channel " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before shedding is: "
+          queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
+                          {hostname: hostname_setting, state: "Shedding",
+	   		  			   fuseRating: fuse_rating_setting,
+						   fuseCharacteristics: char_setting,
+						   fuseCurrent: total,
+						   currentRestriction: (current_restriction_setting == -1 ? false:true),
+						   noOfSheddedChanels: first_to_last_to_shed,
+						   disconnected: (idx_next_to_toggle_off<first_to_last_to_shed ? {idx: idx_next_to_toggle_off, 
+									      deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+										  deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id
+										  estimatedDisconnectedCurrent:last_known_current[first_to_last_to_shed.length-idx_next_to_toggle_off]}} : null ),
+						   reconnected: null,
+						   nextToDisconnect: (idx_next_to_toggle_off<first_to_last_to_shed ? {idx: idx_next_to_toggle_off, 
+									          deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+										      deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id}} : null ),
+						   nextToReconnect: (idx_next_to_toggle_off>0 ? {idx: idx_next_to_toggle_off-1, 
+						 		    	     deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off-1].addr,
+										     deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off-1].id} : null};
+						   function(result, error_code, error_message, params) {
+			  			     if (error_code)
+							   log(LOG_WARN, "Failed to send coasting WEB-hook to endpoint: " + params.uri + " - " + error_message);
+			  			     return;
+            			   },
+		   				   {uri: overload_webhook_uri_setting}
+		   				   );
+	    }
+        log(LOG_INFO, "Shedding global idx channel: " + idx_next_to_toggle_off + " with local relay id: " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before shedding is: "
               + total + " A, expected current after shedding is: " +
-              + (total - last_known_current[first_to_last_to_shed[idx_next_to_toggle_off].id]) + " A");              
+              + (total - last_known_current[first_to_last_to_shed.length-idx_next_to_toggle_off] + " A , current restriction: " + (current_restriction_setting == -1 ? false:true));
         turn(idx_next_to_toggle_off, "off");
       }
       else
@@ -913,25 +976,42 @@ function scanPower() {
       }    
     }
   }
-  else 
-    no_more_can_ched_msg = false;
   if (direction == "coasting") {
-     if (coasting_report_cnt * scan_interval * (overrun_cnt + 1) >= 60)
-        coasting_report_cnt = 0;
-     else
-       coasting_report_cnt++;
-     /*if (!coasting_report_cnt)
-       queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
-                       {hostname: hostname_setting, state: "Shedding", current: total,
-                        next_to_discconect: first_to_last_to_shed[idx_next_to_toggle_off].id}}, 
-			function(result, error_code, error_message) {
-			  return;
-            });*/
+    if (coasting_report_cnt * scan_interval * (consecutive_overrun_cnt + 1) >= 60)
+      coasting_report_cnt = 0;
+    else
+      coasting_report_cnt++;
+    if (!coasting_report_cnt) {
+	  if (overload_webhook_uri_setting != "" && hostname_setting != "") {
+        queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
+                        {hostname: hostname_setting, state: "Coasting",
+	   					 fuseRating: fuse_rating_setting,
+						 fuseCharacteristics: char_setting,
+						 fuseCurrent: total,
+						 currentRestriction: (current_restriction_setting == -1 ? false:true),
+						 noOfSheddedChanels: first_to_last_to_shed,
+						 disconnected: null,
+						 reconnected: null,
+						 nextToDisconnect: (idx_next_to_toggle_off<first_to_last_to_shed ? {idx: idx_next_to_toggle_off, 
+									        deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+										    deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id}} : null ),
+						 nextToReconnect: (idx_next_to_toggle_off>0 ? {idx: idx_next_to_toggle_off-1, 
+						 		    	   deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off-1].addr,
+										   deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off-1].id} : null};
+						 function(result, error_code, error_message, params) {
+			  			   if (error_code)
+							 log(LOG_WARN, "Failed to send coasting WEB-hook to endpoint: " + params.uri + " - " + error_message);
+			  			   return;
+            			 },
+		   				 {uri: overload_webhook_uri_setting}
+		   				 );
+	  }
+      log(LOG_INFO, "Coasting - Next global idx channel to shed is: " + first_to_last_to_shed + " Shedded channels: " + idx_next_to_toggle_off + " current: " + total + " A, current restriction: " + (current_restriction_setting == -1 ? false:true));
+  	}
   }
   running = false;
   return;
 }
-
 /*********************************************************************************************************/
 
 
@@ -944,6 +1024,6 @@ for (let i = 0; i < first_to_last_to_shed.length; i++) turn(i, switch_state[i] ?
 updateKvs();
 HTTPServer.registerEndpoint("shedder", shedderEndPoint);
 Shelly.addEventHandler(shellyEventCb); 
-Timer.set(scan_interval * 1000, true, scanPower);
+Timer.set(scan_interval * 1000, true, scanCurrent);
 
 /*********************************************************************************************************/
