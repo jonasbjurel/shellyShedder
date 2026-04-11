@@ -9,9 +9,8 @@
  * A detailed description can be found here: https://github.com/jonasbjurel/shellyShedder/blob/main/README.md
 
 /***********************************************  Todo:   ************************************************
- * 1) Fix generic webhook shed handling
- * 2) Rebase variable names
- * 3) Priority override handling
+ * 1) Rebase variable names
+ * 2) Priority override handling
  *
 **********************************************************************************************************/
 
@@ -465,9 +464,9 @@ function mustShed(current) {
     return true;
   }
   current_trip_time = getTripTime(current);
-  if (current_trip_time == -1) { 															// TODO We should probably let the fuse cool
-    min_triptime_time = -1;																	// down if previously overloaded but not
-    over_load_time = -1;																	// shedded
+  if (current_trip_time == -1) {
+    min_triptime_time = -1;
+    over_load_time = -1;
     return false;
   }
   if (over_load_time == -1) {
@@ -813,9 +812,6 @@ function updateKvs() {
   createKV("first_to_last_to_shed", first_to_last_to_shed, false);
   createKV("time_to_test_loading_setting", time_to_test_loading_setting, false);
   createKV("scan_interval", scan_interval, false);
-  //createKV("simulation", simulation, false);
-  //createKV("simulated_current", simulated_current, false);
-  //createKV("current_restriction_setting", current_restriction_setting, false);
   createKV("current_restriction_hysteresis_setting", current_restriction_hysteresis_setting, false);
   createKV("overload_webhook_uri_setting", overload_webhook_uri_setting, false);
   createKV("log_level_setting", log_level_setting, false);
