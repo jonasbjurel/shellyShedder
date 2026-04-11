@@ -45,8 +45,8 @@ let first_to_last_to_shed = [
 ];
 let time_to_test_loading_setting = 60;
 let scan_interval = 0.5;
-let simulation = true;
-let simulation_act = true;
+let simulation = false;
+let turn_relay_on_simulation = false;
 let simulated_current = new Array(first_to_last_to_shed.length);
 for (let i = 0; i < first_to_last_to_shed.length; i++) simulated_current[i] = 0;
 let current_restriction_setting = -1;
@@ -186,22 +186,35 @@ function shedderEndPoint(req, res) {
     case "simulation":
       if(key_values.simulation === "true") {
         simulation = true;
-		simulation_act = true;
-        log(LOG_INFO, "Simulation started");
-        res.body = "Simulation started"
+		if (!def(key_values.turnRelayOnSimulation || key_values.turnRelayOnSimulation === "false") {
+		  turn_relay_on_simulation = false;
+		  log(LOG_INFO, "Simulation started - relays will not be turned");
+		  res.body = "Simulation started - relays will not be turned";
+		}
+		else if (key_values.turnRelayOnSimulation === "true") {
+		  turn_relay_on_simulation = true;
+          log(LOG_INFO, "Simulation started - relays will be turned");
+          res.body = "Simulation started - relays will be turned";
+		}
+		else {
+		  turn_relay_on_simulation = false;
+          log(LOG_INFO, "Simulation started - relays will not be turned, turnRelayOnSimulation=" + key_values.turnRelayOnSimulation + " is not recognized as a valid value");
+          res.body = "Simulation started - relays will not be turned, turnRelayOnSimulation=" + key_values.turnRelayOnSimulation + " is not recognized as a valid value";
+		}
         res.code = 200;
       }
       else if(key_values.simulation === "false") {
         simulation = false;
+		turn_relay_on_simulation = false;
         log(LOG_INFO, "Simulation stoped");
         res.body = "Simulation stopped"
         res.code = 200;
       }
       else {
         log(LOG_WARN: "Received a HTTP query for simulation with a wrong value: " +
-               key_values[0].simulation);
+                       key_values[0].simulation);
         res.body = "Received a HTTP query for simulation with a wrong value: " +
-                   key_values[0].simulation;
+                    key_values[0].simulation;
         res.code = 405;
       }
       res.send();
@@ -409,7 +422,6 @@ function shellyEventCb(event) {
       break;
   }
 }
-
 /*********************************************************************************************************/
 
 
@@ -604,7 +616,7 @@ function turn(idx, dir) {
   log(LOG_INFO, "Turning switch " + first_to_last_to_shed[idx].id + " to " + dir);
   on = dir == "on" ? true : false;
   switch_state[first_to_last_to_shed[idx].id] = on;
-  if (simulation_act)
+  if (simulation && !turn_relay_on_simulation)
 	return;
   if (def(first_to_last_to_shed[idx].on_url) && first_to_last_to_shed[idx].off_url) {
     if (def(first_to_last_to_shed[idx].on_url) && dir == "on")
