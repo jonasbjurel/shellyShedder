@@ -198,13 +198,13 @@ the "Script configuration (persistant)" section above. This method does not rese
 
 Response body: None
 
-**Restart(NEW)**<br>
+**Restart**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?restart*<br>
 Restarts the shedding script, all persistant configurations are retained - but the the internal state machine is re-started, meaning that all shedding events-/states-, over-load-, cooling-, current-restriction-, etc. are reset.
 
 Response body: None
 
-**Current restriction (NEW):**<br>
+**Current restriction**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?current_restriction=<current>"&validPeriod=<period>*<br>
 A northbound current shedder system may limit the allowed drawn current for this current shedder group.
 In contrast to group fuse overloading, current restriction leads to instant shedding when needed.
@@ -219,14 +219,14 @@ Response body: A JSON object<br>
 
 
 **Simulation**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?simulation=<true|false>*<br>
+*http://"ShellyURL"/script/<scriptId>/shedder?simulation=<true|false> [& turnRelayOnSimulation=<true|false>]*<br>
 Sets or un-sets the shedder script simulation mode. When simulation mode is set, the currents are not measured from the physical channels, but are set by the "simulated_current" API as described below. 
-In simulation mode the physical relays are not operated but the intended relay operations can be
+If turnRelayOnSimulation is set to "false" the physical relays are not operated but the intended relay operations can be
 observed by log-entries in the Shelly console, or by scanning the the switch state, or by
-monitoring the status web-hook event.
+monitoring the status web-hook event. If turnRelayOnSimulation is set to "true" the relays are operated even if in simulation mode.
 
 Response body a JSON object<br>
-{simulation:true|false}
+{simulation:true|false, turnRelayOnSimulation:true|false}
 
 **Set simulated current**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?setSimulatedCurrent=<Ch0_current, Ch1_current,
