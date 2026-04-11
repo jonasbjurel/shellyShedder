@@ -150,21 +150,7 @@ While a device that runs this script involving only autonomous operations (not i
 a system involving other devices may require significantly higher intervals to acommodate for communication resource requirements, latencies,
 and otherwise. 
 
-**simulation (DEPRECATED):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="simulated_current"&value=<true|false>*<br> 
-......
-
-**Set simulation current (DEPRECATED):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="simulated_current"&value=<[Chan1_current, Chan2_current,
-Chan3_current, Chan4_current, Chan5_current, ...]>*<br>
-Simulated current settings per channel.
-
-**Current restriction setting (DEPRECATED):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="current_restriction_setting"&value=<maxCurrent>*<br>
-A northbound current shedder may limit the allowed drawn current for this current shedder.
-In contrast to group fuse overloading, current restriction leads to instant shedding when needed.
-
-**Maximum current restriction(NEW):**<br>
+**Maximum current restriction:**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="max_current_restriction_setting"&value=<max_current_restriction>*<br>
 The maximum current restriction a north bound shedder system can impose on the shedding group, eg. 
 the minimum current it can ask the shedding group to adhere to.
@@ -175,7 +161,7 @@ When current restriction from a north bound shedder have caused shedding, re-loa
 expected current load after a channel reconnection is expected to be less than:
 "(1-current_restriction_hysteresis_setting) * current_restriction_setting".
 
-**Status webhook end-point(CHANGED):**<br>
+**Status webhook end-point:**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="status_webhook_uri_setting"&value=<"WebhookURI">*<br>
 Sets the URI endpoint for the shedder status event Webhooks. 
 
@@ -183,28 +169,25 @@ Sets the URI endpoint for the shedder status event Webhooks.
 *http://<"ShellyURL">/rpc/KVS.Set?key="log_level_setting"&value=<"LOG_CRITICAL" | "LOG_ERROR" | "LOG_WARN" | "LOG_INFO" | "LOG_VERBOSE">*<br>
 Sets log level.
 
-**factory_reset_to_default(DEPRICATED):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="factory_reset_to_default"*<br>
-
 ## Script interaction APIs (non persistant)
 This shedder script provides non persistant run-time HTTP APIs that enables interaction with the shedder script and that retreives shedder information as well as asynchronous HTTP Webhook call-backs reporting important events to a pre-defined HTTP end-point. This set of APIs require that the Shelly script Id is part of the request URL. The script ID is stored in KVS and can be fetched through the "http://<"ShellyURL">/rpc/KVS.Get?key=<shedder_script_id>".
 
 ### Setting non persistant properties through HTTP APIs
 
-**Factory reset(NEW):**<br>
+**Factory reset:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?factory_reset_to_default*<br>
 Resets and restarts the shedder script to factory default. Default settings as defined in the script will persistantly be applied to the KVS store and any custom configurations needs to be applied to the Shelly KVS store as described under
 the "Script configuration (persistant)" section above. This method does not reset the shelly device as a whole to factory default, but only the shedder script it self.
 
 Response body: None
 
-**Restart**<br>
+**Restart:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?restart*<br>
 Restarts the shedding script, all persistant configurations are retained - but the the internal state machine is re-started, meaning that all shedding events-/states-, over-load-, cooling-, current-restriction-, etc. are reset.
 
 Response body: None
 
-**Current restriction**<br>
+**Current restriction:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?current_restriction=<current>"&validPeriod=<period>*<br>
 A northbound current shedder system may limit the allowed drawn current for this current shedder group.
 In contrast to group fuse overloading, current restriction leads to instant shedding when needed.
@@ -218,7 +201,7 @@ Response body: A JSON object<br>
 * **maximumRestriction** - Indicates the curren lowest current load that a restriction could accomplish.
 
 
-**Simulation**<br>
+**Simulation:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?simulation=<true|false> [& turnRelayOnSimulation=<true|false>]*<br>
 Sets or un-sets the shedder script simulation mode. When simulation mode is set, the currents are not measured from the physical channels, but are set by the "simulated_current" API as described below. 
 If turnRelayOnSimulation is set to "false" the physical relays are not operated but the intended relay operations can be
@@ -228,7 +211,7 @@ monitoring the status web-hook event. If turnRelayOnSimulation is set to "true" 
 Response body a JSON object<br>
 {simulation:true|false, turnRelayOnSimulation:true|false}
 
-**Set simulated current**<br>
+**Set simulated current:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?setSimulatedCurrent=<Ch0_current, Ch1_current,
 Ch2_current, Ch3_current, ...[A]]>*<br>
 Sets the simulated current for each of the shedder channels.
@@ -237,14 +220,14 @@ Response body: A JSON object<br>
 {simulatedCurrent:[ch0_curr, ch1_curr, ch2_curr, ch3_curr,...]}
 
 ### Requesting status through HTTP APIs
-**Get current status**<br>
+**Get current status:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?getCurrent*<br>
 Retrievs the total measured current and current for each channel.
 
 Response body: A JSON object:<br>
 {current:{total: <total_current>, channels:[ch1_curr,ch2_curr,ch3_curr,....]}}
 
-**Get load status**<br>
+**Get load status:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?getLoadStatus*<br>
 Retrievs the load status for the shedder.
 
@@ -267,7 +250,7 @@ group fuse budget.
 *  **lastKnownCurrent** - A vector with all channels last known read current, the current could be the
 result from a recent reading, but could also be from a reading prior to a channel was shedded.
 
-**Get fuse trip time**<br>
+**Get fuse trip time:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?getTripTime=<current[A]>*<br>
 Requests the calculated group fuse trip time for the specified current and the configured group fuse.
 This request does not really request any shedder operational data, but instead invokes the trip-time
@@ -277,7 +260,7 @@ Response body: A JSON object:<br>
 {tripData:{current:trip_current, tripTime:<trip_time>,
 shedMarginFactor:<margin_factor_setting>}}
 
-**Get switch status**<br>
+**Get switch status:**<br>
 *http://"ShellyURL"/script/<scriptId>/shedder?getSwitchStatus*<br>
 Response body: A JSON object:<br>
 {switchStatus:[
@@ -289,7 +272,7 @@ Each vector element represents a channel in the shedding group, the kv structure
 * **priority** - Providing the shedding priority of the shedder channel, in practice the priority
 follows the element's order in the vector (0:highest priority - N:lowest priority) 
 
-### Asynchronous status Webhook events (NEW).
+### Asynchronous status Webhook events.
 When the shedder group status changes (shedding/loading) a status webhook can be sent to a HTTP
 end-point providing the end-point is defined in the shedder script "status_webhook_uri_setting" configuration.
 The web-hook is sent whenever the status is changed, as well as periodically at every minute. 
