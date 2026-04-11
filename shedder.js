@@ -140,16 +140,13 @@ function factoryReset() {
 
 function parseQuery(queryString) {
   let params = {};
-  if (!queryString) return params;
-  
-  // Dela upp strängen vid varje ampersand (&)
+  if (!queryString) 
+	return params;
   let pairs = queryString.split("&");
   for (let i = 0; i < pairs.length; i++) {
     let pair = pairs[i].split("=");
-    if (pair.length === 2) {
-      // Spara som nyckel-värde (t.ex. { "power": "on" })
+    if (pair.length === 2)
       params[pair[0]] = pair[1];
-    }
     else if (pair.length === 1)
       params[pair[0]] = undefined;
   }
@@ -167,7 +164,6 @@ function shedderEndPoint(req, res) {
   //print(key_values);
   //print(Object.keys(key_values));
   //print(Object.keys(key_values)[0]);
-
   switch(Object.keys(key_values)[0]) {
     case "factory_reset_to_default":
       log(LOG_WARN, "Factory reset to default ordered, will delete all KVS entries related to this script and restart the script");
@@ -185,29 +181,31 @@ function shedderEndPoint(req, res) {
            
     case "simulation":
       if(key_values.simulation === "true") {
-        simulation = true;
 		if (!def(key_values.turnRelayOnSimulation || key_values.turnRelayOnSimulation === "false") {
+		  simulation = true;
 		  turn_relay_on_simulation = false;
 		  log(LOG_INFO, "Simulation started - relays will not be turned");
-		  res.body = "Simulation started - relays will not be turned";
+		  res.body = JSON.stringify({simulation: true, turnRelayOnSimulation: false});
+		  res.code = 200;
 		}
 		else if (key_values.turnRelayOnSimulation === "true") {
+		  simulation = true;
 		  turn_relay_on_simulation = true;
           log(LOG_INFO, "Simulation started - relays will be turned");
-          res.body = "Simulation started - relays will be turned";
+		  res.body = JSON.stringify({simulation: true, turnRelayOnSimulation: true});
+		  res.code = 200;
 		}
 		else {
-		  turn_relay_on_simulation = false;
-          log(LOG_INFO, "Simulation started - relays will not be turned, turnRelayOnSimulation=" + key_values.turnRelayOnSimulation + " is not recognized as a valid value");
-          res.body = "Simulation started - relays will not be turned, turnRelayOnSimulation=" + key_values.turnRelayOnSimulation + " is not recognized as a valid value";
+          log(LOG_INFO, "turnRelayOnSimulation=" + key_values.turnRelayOnSimulation + " is not recognized as a valid value");
+          res.body = "turnRelayOnSimulation=" + key_values.turnRelayOnSimulation + " is not recognized as a valid value";
+		  res.code = 405;	
 		}
-        res.code = 200;
       }
       else if(key_values.simulation === "false") {
         simulation = false;
 		turn_relay_on_simulation = false;
         log(LOG_INFO, "Simulation stoped");
-        res.body = "Simulation stopped"
+        res.body = res.body = JSON.stringify({simulation: false, turnRelayOnSimulation: false});
         res.code = 200;
       }
       else {
