@@ -175,20 +175,20 @@ This shedder script provides non persistant run-time HTTP APIs that enables inte
 ### Setting non persistant properties through HTTP APIs
 
 **Factory reset:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?factory_reset_to_default*<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?factory_reset_to_default*<br>
 Resets and restarts the shedder script to factory default. Default settings as defined in the script will persistantly be applied to the KVS store and any custom configurations needs to be applied to the Shelly KVS store as described under
 the "Script configuration (persistant)" section above. This method does not reset the shelly device as a whole to factory default, but only the shedder script it self.
 
 Response body: None
 
 **Restart:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?restart*<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?restart*<br>
 Restarts the shedding script, all persistant configurations are retained - but the the internal state machine is re-started, meaning that all shedding events-/states-, over-load-, cooling-, current-restriction-, etc. are reset.
 
 Response body: None
 
 **Current restriction:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?current_restriction=<current>"&validPeriod=<period>*<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?current_restriction=<current>"&validPeriod=<period>*<br>
 A northbound current shedder system may limit the allowed drawn current for this current shedder group.
 In contrast to group fuse overloading, current restriction leads to instant shedding when needed.
 The "validPeriod" sets the time period in seconds for which the shedder group should adhere to the
@@ -202,7 +202,7 @@ Response body: A JSON object<br>
 
 
 **Simulation:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?simulation=<true|false> [& turnRelayOnSimulation=<true|false>]*<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?simulation=<true|false> [& turnRelayOnSimulation=<true|false>]*<br>
 Sets or un-sets the shedder script simulation mode. When simulation mode is set, the currents are not measured from the physical channels, but are set by the "simulated_current" API as described below. 
 If turnRelayOnSimulation is set to "false" the physical relays are not operated but the intended relay operations can be
 observed by log-entries in the Shelly console, or by scanning the the switch state, or by
@@ -212,7 +212,7 @@ Response body a JSON object<br>
 {simulation:true|false, turnRelayOnSimulation:true|false}
 
 **Set simulated current:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?setSimulatedCurrent=<Ch0_current, Ch1_current,
+*http://"ShellyURL"/script/\<scriptId>/shedder?setSimulatedCurrent=<Ch0_current, Ch1_current,
 Ch2_current, Ch3_current, ...[A]]>*<br>
 Sets the simulated current for each of the shedder channels.
 
@@ -221,14 +221,14 @@ Response body: A JSON object<br>
 
 ### Requesting status through HTTP APIs
 **Get current status:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?getCurrent*<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?getCurrent*<br>
 Retrievs the total measured current and current for each channel.
 
 Response body: A JSON object:<br>
 {current:{total: <total_current>, channels:[ch1_curr,ch2_curr,ch3_curr,....]}}
 
 **Get load status:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?getLoadStatus*<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?getLoadStatus*<br>
 Retrievs the load status for the shedder.
 
 Response body: A JSON object:<br>
@@ -251,7 +251,7 @@ group fuse budget.
 result from a recent reading, but could also be from a reading prior to a channel was shedded.
 
 **Get fuse trip time:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?getTripTime=<current[A]>*<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?getTripTime=<current[A]>*<br>
 Requests the calculated group fuse trip time for the specified current and the configured group fuse.
 This request does not really request any shedder operational data, but instead invokes the trip-time
 calculation routine to give an estimated trip-time.
@@ -261,7 +261,7 @@ Response body: A JSON object:<br>
 shedMarginFactor:<margin_factor_setting>}}
 
 **Get switch status:**<br>
-*http://"ShellyURL"/script/<scriptId>/shedder?getSwitchStatus*<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?getSwitchStatus*<br>
 Response body: A JSON object:<br>
 {switchStatus:[
 {addr: <URI|IPaddress|loacalhost>, gen:<shelly_generation>2, type: <"relay"|switch|...>, id: <channel_id>, shed: <true|false>, measure: <true|false>, switch_state: <"on"|"off", priority: <prio>}, ...]}
@@ -278,7 +278,7 @@ end-point providing the end-point is defined in the shedder script "status_webho
 The web-hook is sent whenever the status is changed, as well as periodically at every minute. 
 
 The webhook is sent to the configured target end-point as a HTTP PUT request:<br>
-*http://<targetEndpointURI>/shedder/<hostname>/status*<br>
+*http://<targetEndpointURI>/shedder/\<hostname>/status*<br>
 
 Request body: A JSON object:<br>
 *{shedderStatus:{hostName: <hostname_setting>, loadDirection: <"shedding"|"loading"|"coasting">
