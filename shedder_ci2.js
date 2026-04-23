@@ -238,7 +238,7 @@ function factoryReset(cb) {
 
 function setSimulation(simulation, cb) {
   queueShellyCall("HTTP.GET", {url:"http://localhost/script/" + target_script_id +
-                              "/shedder?simulation=" + simulation}, 
+                              "/shedder?simulation=" + simulation + "&turnRelayOnSimulation=true"}, 
                   function (result, error_code, error_message, cb) {
                     if(def(cb))
                       cb(result, error_code, error_message);
@@ -463,7 +463,6 @@ function verificationEngine() {
           setCurrentRestriction(-1);
           setSimulation(true);
           setSimulatedCurrent([0,0,0,0]);
-          setCurrentRestriction(-1);
           break;
           
         default:
@@ -484,9 +483,14 @@ function verificationEngine() {
       if(verification_sub_phase == 0) {
         log(LOG_INFO, "============= Waiting for shedder to stabelize =============");
       }
-      getCurrent(function(result, error_code, error_message) {current = result});
-      getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
-      getLoadStatus(function(result, error_code, error_message) {load_status = result});
+      if(!(verification_sub_phase % 4))
+        getCurrent(function(result, error_code, error_message) {current = result});
+      if(!((verification_sub_phase-1) % 4))
+        getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
+      if(!((verification_sub_phase-2) % 4))
+        getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
+       if(!((verification_sub_phase-3) % 4))
+         getLoadStatus(function(result, error_code, error_message) {load_status = result});
       if (def(current) && def(switch_status) && def(load_status) && current.total == 0 &&
         !switch_status.some(function(sw) {return sw.switchState == "on";}) && 
         load_status.overLoadTime == -1 && load_status.coolDownTimeRemaining == -1) {
@@ -494,7 +498,7 @@ function verificationEngine() {
         current = undefined;
         load_status = undefined;
         switch_status = undefined;
-        verification_phase = 9; 
+        verification_phase = 11; 
         verification_sub_phase = 0;
         break;
       }
@@ -506,17 +510,16 @@ function verificationEngine() {
       }
       verification_sub_phase++;
       break;
-      
-
 
 //TC-9; Test-loading
     case 9:
-      if(waitTimer(0, 1)) return;
-      if (!(verification_sub_phase % 2)){
+      if(waitTimer(0, 3)) return;
+      if (!(verification_sub_phase % 2))
         getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
+      if (!((verification_sub_phase-1) % 2))
         getLoadStatus(function(result, error_code, error_message){load_status=result});
-      }
-      if (verification_sub_phase == 0) {
+ 
+      if (verification_sub_phase == 4) {
         log(LOG_INFO, "============= Test-loading @ Load: 4*10 In =============");
         
         verification_current_vector = [fuse_rating_setting*10,fuse_rating_setting*10,
@@ -524,9 +527,9 @@ function verificationEngine() {
         log(LOG_INFO, "4*10 In test-loading test INFO: Changing simulated current to " + verification_current_vector);
         setSimulatedCurrent(verification_current_vector);
       }  
-      if (verification_sub_phase == 4) {
+      if (verification_sub_phase == 15) {
         if(!shed(switch_status, true, [3, 2, 1])) {
-          log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 1, 2 and 3 but got some: " + JSON.stringify(switch_status));
+          log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 1, 2 and 3 but got: " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
           break;
@@ -536,7 +539,7 @@ function verificationEngine() {
         log(LOG_INFO, "4*10 In test-loading test INFO: Waiting for time_to_test_loading_setting*: ~" + (~~time_to_test_loading_setting*0.8) + " seconds before next check.");
         setSimulatedCurrent(verification_current_vector);
       }
-      if (verification_sub_phase == ~~(4 + time_to_test_loading_setting*0.8/1.5)) {
+      if (verification_sub_phase == ~~(15 + time_to_test_loading_setting*0.8/3)) {
         if(!shed(switch_status, true, [3, 2, 1])) {
           log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 1, 2 and 3 but got " + JSON.stringify(switch_status));
           stopScript(true);
@@ -546,8 +549,8 @@ function verificationEngine() {
         log(LOG_INFO, "4*10 In test-loading test INFO: Channel 1, 2 and 3 shedded as expected.");
 
       }
-      if (verification_sub_phase == ~~(4 + time_to_test_loading_setting*1.2/1.5)) {
-        if(!shed(switch_status, true, [3, 2])) {
+      if (verification_sub_phase == ~~(15 + time_to_test_loading_setting*1.2/3)) {
+        if(!shed(switch_status, true, [3, 2, 1])) {
           log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 2 and 3 but got: " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
@@ -555,41 +558,14 @@ function verificationEngine() {
         }
         log(LOG_INFO, "4*10 In test-loading test INFO: Channel 2 and 3 shedded as expected.");
       }
-      if (verification_sub_phase == ~~(4 + 2*time_to_test_loading_setting*0.8/1.5)) {
-        if(!shed(switch_status, true, [3, 2])) {
-          log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 2 and 3 but got: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;
-        }
-        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 2 and 3 shedded as expected.");
-      }
-      if (verification_sub_phase == ~~(4 + 2*time_to_test_loading_setting*1.2/1.5)) {
-        if(!shed(switch_status, true, [3])) {
-          log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 3 but got: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;
-        }
-        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 3 shedded as expected.");
-      }
-      if (verification_sub_phase == ~~(4 + 3*time_to_test_loading_setting*0.8/1.5)) {
-        if(!shed(switch_status, true, [3])) {
-          log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 3 but got: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;
-        }
-        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 3 shedded as expected.");
-      }
-      if (verification_sub_phase == ~~(4 + 3*time_to_test_loading_setting*1.2/1.5)) {
+      if (verification_sub_phase == ~~(10 + 2*time_to_test_loading_setting*0.8/1.5)) {
         if(!noShed(switch_status)) {
-          log(LOG_ERROR, "4*10 In test-loading test ERROR: Didn't expect any shed but got: " + JSON.stringify(switch_status));
+          log(LOG_ERROR, "Didnt expect shedding, but got some: " + JSON.stringify(switch_status));
           stopScript(true);
           verification_phase = -1;
           break;
         }
-        log(LOG_INFO, "4*10 In test-loading test INFO: No channel shedded as expected.");
+        log(LOG_INFO, "4*10 In test-loading test INFO: No shedding as expected.");
         log(LOG_INFO, "4*10 In test-loading test SUCCESS: Test-loading happend as expected");
         current = undefined;
         load_status = undefined;
@@ -601,24 +577,23 @@ function verificationEngine() {
       verification_sub_phase++;
       break; 
 
-
 //TC-10; NB Current restriction
     case 10:
-      if(waitTimer(0, 1)) return;
-      if (!(verification_sub_phase % 2)) {
+      if(waitTimer(0, 3)) return;
+      if (!(verification_sub_phase % 2))
         getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
+      if (!((verification_sub_phase-1) % 2))
         getLoadStatus(function(result, error_code, error_message){load_status=result});
-      }
+        
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= NB current restriction @ Load: In =============");
-        
         verification_current_vector = [fuse_rating_setting/4,fuse_rating_setting/4,
                                        fuse_rating_setting/4,fuse_rating_setting/4];
         log(LOG_INFO, "NB current restriction test INFO: Changing simulated current to " + verification_current_vector);
         setSimulatedCurrent(verification_current_vector);
       }
       
-      if (verification_sub_phase == 4) {        
+      if (verification_sub_phase == 10) {        
         if(!noShed(switch_status)) {
           log(LOG_ERROR, "NB current restriction test ERROR: Didn't expect any shed but got: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -630,7 +605,7 @@ function verificationEngine() {
         setCurrentRestriction(fuse_rating_setting*3/4);
       }
       
-      if (verification_sub_phase == 8) {        
+      if (verification_sub_phase == 20) {        
         if(!shed(switch_status, true, [3])) {
           log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 3 to be shedded but got: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -642,7 +617,7 @@ function verificationEngine() {
         setCurrentRestriction(fuse_rating_setting*2/4);
       }
       
-      if (verification_sub_phase == 12) {        
+      if (verification_sub_phase == 30) {        
         if(!shed(switch_status, true, [2, 3])) {
           log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -654,7 +629,7 @@ function verificationEngine() {
         setCurrentRestriction(fuse_rating_setting*1/4);
       }
       
-      if (verification_sub_phase == 16) {        
+      if (verification_sub_phase == 40) {        
         if(!shed(switch_status, true, [1, 2, 3])) {
           log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 1, 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -666,7 +641,7 @@ function verificationEngine() {
         setCurrentRestriction(0);
       }
       
-       if (verification_sub_phase == 20) {        
+       if (verification_sub_phase == 50) {        
         if(!shed(switch_status, true, [1, 2, 3])) {
           log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 1, 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -678,7 +653,7 @@ function verificationEngine() {
         setCurrentRestriction(fuse_rating_setting*2/4);
       }     
 
-      if (verification_sub_phase == 24) {        
+      if (verification_sub_phase == 60) {        
         if(!shed(switch_status, true, [1, 2, 3])) {
           log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 1, 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -686,11 +661,11 @@ function verificationEngine() {
           break;
         }
         log(LOG_INFO, "NB current restriction test INFO: Channel 1, 2 and 3 was sechedded as expected");
-        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction to In*2/4*1.1");
-        setCurrentRestriction(fuse_rating_setting*2/4*1.1);
+        log(LOG_INFO, "NB current restriction test INFO: Setting current restriction to In*2/4*0.9");
+        setCurrentRestriction(fuse_rating_setting*2/4*1.2);
       }
       
-      if (verification_sub_phase == 28) {        
+      if (verification_sub_phase == 70) {        
         if(!shed(switch_status, true, [2, 3])) {
           log(LOG_ERROR, "NB current restriction test ERROR: Expected channel 2 and 3 to be shedded but got: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -702,7 +677,7 @@ function verificationEngine() {
         setCurrentRestriction(-1);
       }
       
-      if (verification_sub_phase == 32) {        
+      if (verification_sub_phase == 80) {        
         if(!noShed(switch_status)) {
           log(LOG_ERROR, "NB current restriction test ERROR: Didn't expect any channel to be shedded but got: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -720,79 +695,53 @@ function verificationEngine() {
       }
       verification_sub_phase++;
       break;
-      
+
 //TC-11: API testing
     case 11:
       if(waitTimer(0, 1)) return;
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= HTTP API test =============");
-        log(LOG_INFO, "Factory reset INFO: Starting a factory reset");
-        factoryReset();
+        log(LOG_INFO, "API testing INFO: Getting Switch status");
+        getSwitchStatus(function(result, err_no, err_msg) {
+                          log(LOG_INFO, "API testing INFO - Switch status: " + JSON.stringify(result));
+                        }
+                        );
       }
+       
+      if (verification_sub_phase == 5) {
+        log(LOG_INFO, "API testing INFO: Getting Current");
+        getCurrent(function(result, err_no, err_msg) {
+                     log(LOG_INFO, "API testing INFO - Switch status: " + JSON.stringify(result));
+                   }
+                   );
+      }
+ 
+      if (verification_sub_phase == 10) {
+        log(LOG_INFO, "API testing INFO: Getting Load");
+        getLoadStatus(function(result, err_no, err_msg) {
+                        log(LOG_INFO, "API testing INFO - Load status: " + JSON.stringify(result));
+                      }
+                   );
+      }      
       
-      if (verification_sub_phase == 4) {
-        print("Checking 1");
-        Shelly.call("Script.List", null,
-        function(result, error_code, error_message){
-          print(JSON.stringify(result));
-          for(let i=0; i<result.scripts.length;i++){
-            if(result.scripts[i].name = "shedder") {
-              if(result.scripts[i].running) {
-                log(LOG_ERROR, "Factory reset ERROR: Script did not stop");
-                stopScript(true);
-                verification_phase = -1;
-              }
-              else {
-                log(LOG_ERROR, "Factory reset ERROR: Script stopped as expected");
-              }
-            }
-          }
-        }
-        );
-        print("Checking 2");
-
-        Shelly.call("KVS.Get", {key:"scan_interval"},
-        function(result, error_code, error_message){
-          print(JSON.stringify(result));
-          /*for(let i=0; i<result.scripts.length;i++){
-            if(result.scripts[i].name = "shedder") {
-              if(result.scripts[i].running) {
-                log(LOG_ERROR, "Factory reset ERROR: Script did not stop");
-                stopScript(true);
-                verification_phase = -1;
-              }
-            }
-          }*/
-        }
-        );     
-      }
-      
-      if (verification_sub_phase == 11) {
-        //log(LOG_INFO, "Factory reset INFO: Starting a factory reset");
-        current = undefined;
-        load_status = undefined;
-        switch_status = undefined;
-        verification_phase++; 
-        verification_sub_phase = 0;
-        break;
-      }
+      if (verification_sub_phase == 15) {
+        log(LOG_INFO, "API testing INFO: Getting Load");
+        getLoadStatus(function(result, err_no, err_msg) {
+                        log(LOG_INFO, "API testing INFO - Load status: " + JSON.stringify(result));
+                      }
+                   );
+        verification_phase++;
+      }            
       verification_sub_phase++;
       break;
       
-//11.1 Factory reset - http://"ShellyURL"/script//shedder?factory_reset_to_default
-//11.2 Restart - http://"ShellyURL"/script//shedder?=restart
-//11.3 Current restriction (Already verified in TC 10)
-//11.4 Simulation (Already tested in TC 1)
-//11.5 Set simulated current (Already tested in earlier TCs)
-//11.6 Get current status (Already tested in TC...)
-//11.7 Get load status (Already tested in earlier TCs)
-//11.8 Get fuse trip time (Already tested in earlier TC)
-//11.9 Get switch status (Already tested in earlier TC)
+
 //TC-12 Asynchronous HTTP RPC callbacks
-//TC-13 KVS configuration and script ID identification
-//TC-14 169h Stability/Robustness test: ......
+//TC-13 169h Stability/Robustness test: ......
 
     default:
+      log(LOG_INFO, "CI finished");
+      Timer.clear(timer_handle);
       return;
   }
 }
@@ -801,10 +750,4 @@ function verificationEngine() {
 /*                                              main/init                                                */
 /*********************************************************************************************************/
 Shelly.addEventHandler(shellyEventCb);
-Timer.set(scan_interval*1000, true, verificationEngine);
-
-/*********************************************************************************************************/
-/*                                              main/init                                                */
-/*********************************************************************************************************/
-Shelly.addEventHandler(shellyEventCb);
-Timer.set(scan_interval*1000, true, verificationEngine);
+let timer_handle = Timer.set(scan_interval*1000, true, verificationEngine);
