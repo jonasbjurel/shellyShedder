@@ -108,6 +108,16 @@ let measurement_timer = undefined;
 let measurement_busy_cnt = 0;
 let measurement_fail_cnt = 0;
 let measurement_timeout_cnt = 0;
+let script_start_time = 0;
+let metrics_updated = false;
+let cpu_load_perc = 0;
+let mem_used = 0;
+let mem_used_perc = 0;
+let mem_free = 0;
+let mem_free_perc = 0;
+let mem_high_watermark = 0;
+let mem_high_watermark_perc = 0;
+let total_mem = 0;
 
 /*********************************************************************************************************/
 
@@ -259,6 +269,44 @@ function shedderEndPoint(req, res) {
       simulated_current = ordered_simulation_current;
       break;
       
+    case "measurePerformanceMetrics":
+      queueShellyCall("Script.GetStatus", {id: Shelly.getCurrentScriptId()}, 
+        function (result) {
+          if (result) {
+            metrics_updated = true;
+            cpu_load_perc = result.cpu
+            mem_used = result.mem_used;
+            mem_used_perc = (result.mem_used/(result.mem_used + result.mem_free) * 100).toFixed(0);
+            mem_free = result.mem_free;
+            mem_free_perc = (result.mem_free/(result.mem_used + result.mem_free) * 100).toFixed(0);
+            mem_high_watermark = result.mem_peak;
+            mem_high_watermark_perc = (result.mem_peak/(result.mem_used + result.mem_free) * 100).toFixed(0);
+            total_mem = (result.mem_used) + result.mem_free;
+          }
+          else {
+            log(LOG.WARN, "No script status available");
+          }
+        }
+      );
+      res.body = "use getPerformanceMetricMeasurements to get the readings";   
+      res.code = 200;
+      break;
+    
+    case "getPerformanceMetricMeasurements":
+      res.body = JSON.stringify({performanceMetrics: {metricsUpdated: metrics_updated,
+                                 upTime: Math.floor(Date.now()/1000)-script_start_time,
+                                 cpuLoadPerc:cpu_load_perc, memUsed:mem_used,
+                                 memUsedPerc:mem_used_perc, memFree:mem_free,
+                                 memFreePerc:mem_free_perc, memHighWatermark:mem_high_watermark,
+                                 memHighWatermarkPerc:mem_high_watermark_perc,
+                                 totalMem: total_mem, overRuns:overrun_cnt,
+                                 measurementBusyCnt: measurement_busy_cnt,
+                                 measurementFailCnt: measurement_fail_cnt,
+                                 measurementTimeoutCnt: measurement_timeout_cnt}});
+      metrics_updated = false;
+      res.code = 200;
+      break;
+ 
     case "getCurrent":
       res.body = JSON.stringify({current:{total: total, channels:current_vector}});
       res.code = 200;
@@ -1083,6 +1131,7 @@ function processCurrentMeasurements(current, err_code, err_msg) {
 /*********************************************************************************************************/
 /*                                              main/init                                                */
 /*********************************************************************************************************/
+script_start_time = Math.floor(Date.now() / 1000)
 for (let i = 0; i < first_to_last_to_shed.length; i++) turn(i, switch_state[i] ? "on" : "off");
 if (!def(idx_next_to_toggle_off=nextIdxToShed(-1))) {
   log(LOG_ERROR, "Configuration error, none of the channels are sheddable");

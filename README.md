@@ -179,13 +179,13 @@ This shedder script provides non persistant run-time HTTP APIs that enables inte
 Resets and restarts the shedder script to factory default. Default settings as defined in the script will persistantly be applied to the KVS store and any custom configurations needs to be applied to the Shelly KVS store as described under
 the "Script configuration (persistant)" section above. This method does not reset the shelly device as a whole to factory default, but only the shedder script it self.
 
-Response body: None
+Response body: Undefined
 
 **Restart:**<br>
 *http://"ShellyURL"/script/\<scriptId>/shedder?restart*<br>
 Restarts the shedding script, all persistant configurations are retained - but the the internal state machine is re-started, meaning that all shedding events-/states-, over-load-, cooling-, current-restriction-, etc. are reset.
 
-Response body: None
+Response body: Undefined
 
 **Current restriction:**<br>
 *http://"ShellyURL"/script/\<scriptId>/shedder?current_restriction=<current>"&validPeriod=<period>*<br>
@@ -220,6 +220,49 @@ Response body: A JSON object<br>
 {simulatedCurrent:[ch0_curr, ch1_curr, ch2_curr, ch3_curr,...]}
 
 ### Requesting status through HTTP APIs
+
+**measurePerformanceMetrics:**<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?measurePerformanceMetrics*<br>
+Starts an asynchronous measurement of platform and shedding script system performance for which the results can later be picked-up
+by a following "getPerformanceMetricMeasurements" call (see below).
+
+Response body: An informative text string indicating the URL for which the result can be fetched.
+
+**getPerformanceMetricMeasurements:**<br>
+*http://"ShellyURL"/script/\<scriptId>/shedder?getPerformanceMetricMeasurements*<br>
+Fetches the results from a previous "measurePerformanceMetrics" asynchronous request.
+
+Response body: A JSON object<br>
+{performanceMetrics: {metricsUpdated: <true|false>,
+                      upTime:<value[s],
+                      cpuLoadPerc:<value [%]>,
+                      memUsed:<value [B]>,
+                      memUsedPerc:<value [%]>,
+                      memFree:<value [B]>,
+                      memFreePerc:<value [%]>,
+                      memHighWatermark:<value [B]>,
+                      memHighWatermarkPerc:<value [%]>,
+                      totalMem:<value [B]>,
+                      overRuns:<value>,
+                      measurementBusyCnt:<value>,
+                      measurementFailCnt:<value>,
+                      measurementTimeoutCnt:<value>}}
+
+* **metricsUpdated:** Indicates if this was the first "getPerformanceMetricMeasurements" call after a successful "measurePerformanceMetrics" call, indicating weather the measurements are fresh/latest for this call.
+* **upTime:** Script uptime in seconds.
+* **cpuLoadPerc:** Script portion of device CPU loading in %.
+* **memUsed:** Script memory usage in Bytes.
+* **memUsedPerc:** Script memory usage in %.
+* **memFree:** Device memory free in Bytes.
+* **memFreePerc:** Device memory free in %.
+* **memHighWatermark:** Maximum ever used memory by Script in Bytes.
+* **memHighWatermarkPerc:** Maximum ever used memory by Script in %.
+* **totalMem:** Total available device memory in Bytes.
+* **overRuns:** Total amount of accumulated overruns, I.e. when a time bound scan of currents, actions, etc cannot be expedited becaus the previous scan has not finished.
+* **measurementBusyCnt:** Total amount of accumulated events where the regular current measurements could not be performed because the previous current measurment was still ongoing.
+* **measurementFailCnt:** Total amount of accumulated events where the regular current measurements failed.
+* **measurementFailCnt:** Total amount of accumulated events where the regular current measurements failed to return within the given time boundary.
+
 **Get current status:**<br>
 *http://"ShellyURL"/script/\<scriptId>/shedder?getCurrent*<br>
 Retrievs the total measured current and current for each channel.
