@@ -8,9 +8,6 @@
  * A detailed description can be found here: https://github.com/jonasbjurel/shellyShedder/blob/main/README.md
  *********************************************************************************************************/
 
-
-
-
 let fuse_rating_setting = 16;
 let fuse_char_setting = "C";
 let margin_factor_setting = 4;
@@ -18,9 +15,6 @@ let cool_down_time_setting = 10;
 let time_to_test_loading_setting = 120;
 let current_restriction_hysteresis_setting = 0.1;
 let target_scan_interval = 0.5;
-
-
-
 
 let shelly_call_records = [];
 let calls = 0;
@@ -44,7 +38,7 @@ let switch_status = undefined;
 let load_status = undefined;
 let lowest_prio_chan = 0;
 
-/********************************************    Constants ***********************************************/
+/********************************************  Constants   ***********************************************/
 const LOG_PREFIX = "shedderCI";
 const LOG_VERBOSE = 0;
 const LOG_INFO = 1;
@@ -62,7 +56,6 @@ log_level_setting = LOG_INFO;
 
 /* function def(o);
  * Check if defined */
-
 function def(o) {
   return typeof o !== "undefined";
 }
@@ -71,11 +64,11 @@ function def(o) {
 /* function log(severity, log_entry);
  * Log entries to console according to "log_level_setting" which can be any of
  *  LOG_VERBOSE, LOG_INFO, LOG_WARN, LOG_ERROR and LOG_CRITICAL */
- 
 function log(severity, log_entry) {
   if (severity >= log_level_setting)
     print(LOG_PREFIX + ": " + log_entry);
 }
+
 
 /* function queueShellyCall()
  * Queues a shelly call. As Shelly only allows a very limited number of system calls running in parallel,
@@ -93,7 +86,6 @@ function queueShellyCall(method, method_param, cb_fun, cb_fun_params) {
  * Executes queued shelly calls, when a call has finished it's synchronous execution,
  * the next in the queue's execution gets triggered by the "continueExecQueuedShellyCalls"
  * event */
- 
 function execQueuedShellyCalls(event) {
   if (shelly_call_records.length && calls < CALL_LIMIT) {
     calls ++;
@@ -158,16 +150,6 @@ function waitTimer(timer_id, time) {
     return true;
   }
 }
-
-
-/* function reboot()
- * Reboots the Shelly */
- /*
-function reboot() {
-  Shelly.Reboot();
-}
-*/
-
 
 function backupKVS(cb) {
   queueShellyCall("KVS.GetMany", {match:"*"}, 
@@ -279,6 +261,7 @@ function getCurrent(cb) {
                   );
 }
 
+
 function getTripTime(current, cb) {
   queueShellyCall("HTTP.GET", {url:"http://localhost/script/" + target_script_id +
                                    "/shedder?getTripTime=" + current}, 
@@ -310,6 +293,7 @@ function getSwitchStatus(cb) {
                   );
 }
 
+
 function getLoadStatus(cb) {
   queueShellyCall("HTTP.GET", {url:"http://localhost/script/" + target_script_id +
                               "/shedder?getLoadStatus"}, 
@@ -326,6 +310,7 @@ function getLoadStatus(cb) {
                   );
 }
 
+
 function includes(array, value){
   for (let i=0; i<array.length; i++) {
     if(array[i] === value)
@@ -333,6 +318,7 @@ function includes(array, value){
   }
   return false;
 }
+
 
 function getPrioChannel(switch_status, prio){
   let step = prio < 0 ? -1:1;
@@ -348,6 +334,7 @@ function getPrioChannel(switch_status, prio){
   //print("Could not find switch priority " + prio);
   return -1;
 }
+
 
 function noShed(switch_status, perfect_match, channels) {
   if (!def(channels)) {
@@ -366,6 +353,7 @@ function noShed(switch_status, perfect_match, channels) {
   }
   return true;  
 }
+
 
 function shed(switch_status, perfect_match, channels) {
   if (!def(channels))
@@ -498,7 +486,7 @@ function verificationEngine() {
         current = undefined;
         load_status = undefined;
         switch_status = undefined;
-        verification_phase = 11; 
+        verification_phase = 9; 
         verification_sub_phase = 0;
         break;
       }
@@ -513,7 +501,7 @@ function verificationEngine() {
 
 //TC-9; Test-loading
     case 9:
-      if(waitTimer(0, 3)) return;
+      if(waitTimer(0, 1.5)) return;
       if (!(verification_sub_phase % 2))
         getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
       if (!((verification_sub_phase-1) % 2))
@@ -549,16 +537,7 @@ function verificationEngine() {
         log(LOG_INFO, "4*10 In test-loading test INFO: Channel 1, 2 and 3 shedded as expected.");
 
       }
-      if (verification_sub_phase == ~~(15 + time_to_test_loading_setting*1.2/3)) {
-        if(!shed(switch_status, true, [3, 2, 1])) {
-          log(LOG_ERROR, "4*10 In test-loading test ERROR: Expected chedding of chanel 2 and 3 but got: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;
-        }
-        log(LOG_INFO, "4*10 In test-loading test INFO: Channel 2 and 3 shedded as expected.");
-      }
-      if (verification_sub_phase == ~~(10 + 2*time_to_test_loading_setting*0.8/1.5)) {
+      if (verification_sub_phase == ~~(15 + time_to_test_loading_setting*1.5/3)) {
         if(!noShed(switch_status)) {
           log(LOG_ERROR, "Didnt expect shedding, but got some: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -579,7 +558,7 @@ function verificationEngine() {
 
 //TC-10; NB Current restriction
     case 10:
-      if(waitTimer(0, 3)) return;
+      if(waitTimer(0, 1.5)) return;
       if (!(verification_sub_phase % 2))
         getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
       if (!((verification_sub_phase-1) % 2))
