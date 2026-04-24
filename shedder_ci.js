@@ -230,7 +230,7 @@ function factoryReset(cb) {
 
 function setSimulation(simulation, cb) {
   queueShellyCall("HTTP.GET", {url:"http://localhost/script/" + target_script_id +
-                              "/shedder?simulation=" + simulation}, 
+                              "/shedder?simulation=" + simulation + "&turnRelayOnSimulation=true"}, 
                   function (result, error_code, error_message, cb) {
                     if(def(cb))
                       cb(result, error_code, error_message);
@@ -260,6 +260,7 @@ function getCurrent(cb) {
                                    "/shedder?getCurrent"}, 
                   function (result, error_code, error_message, cb) {
                     //print(atob(result.body_b64));
+                    print("Got current reading");
                     result = JSON.parse(atob(result.body_b64));
                     if(def(result) && "current" in result) 
                         cb(result.current, error_code, error_message);
@@ -487,7 +488,7 @@ function verificationEngine() {
         current = undefined;
         load_status = undefined;
         switch_status = undefined;
-        verification_phase++; 
+        verification_phase++;
         verification_sub_phase = 0;
         break;
       }
@@ -894,24 +895,25 @@ function verificationEngine() {
         verification_sub_phase = 0;
         break;
       }
-      verification_sub_phase++
+      verification_sub_phase++;
       break;
 
 //TC-7: Short over-load: 4*10*In
     case 7:
       if(waitTimer(0, 1)) return;
+      print("SubPhase: " + verification_sub_phase);
       if (!(verification_sub_phase % 2)){
         getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
         getLoadStatus(function(result, error_code, error_message){load_status=result});
       }
-      if (verification_sub_phase == 0) {
+      if (verification_sub_phase == 1) {
         log(LOG_INFO, "============= Running short overload @ Load: 4*10*In =============");
         verification_current_vector = [fuse_rating_setting*10,fuse_rating_setting*10,
                                        fuse_rating_setting*10,fuse_rating_setting*10];
         log(LOG_INFO, "4*10*In short overload test INFO: Changing simulated current to 4*10*In over-load " + verification_current_vector);
         setSimulatedCurrent(verification_current_vector);
       }
-      if (verification_sub_phase == 4) {
+      if (verification_sub_phase == 5) {
         if(!shed(switch_status)) {
           log(LOG_ERROR, "4*10*In short overload test ERROR: Expected all channels to have been shedded but got some that did not: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -928,7 +930,7 @@ function verificationEngine() {
         log(LOG_INFO, "4*10*In short overload test INFO: setting current to [0,0,0,0]");
         setSimulatedCurrent([0,0,0,0]);
       } 
-      if (verification_sub_phase == (4 + 3*time_to_test_loading_setting*1.2)) {
+      if (verification_sub_phase == 100) {
         if(!noShed(switch_status)){
           log(LOG_ERROR, "4*10*In short overload test ERROR: Did not expect shedding but got some: " + JSON.stringify(switch_status));
           stopScript(true);
@@ -950,7 +952,7 @@ function verificationEngine() {
         verification_sub_phase = 0;
         break;
       }
-      verification_sub_phase++
+      verification_sub_phase++;
       break;
 
 //TC-8: Subsequent Prio over-load: ......
@@ -1068,17 +1070,18 @@ function verificationEngine() {
         verification_sub_phase = 0;
         break;
       }
-      verification_sub_phase++
+      verification_sub_phase++;
       break;
 
     default:
+      log(LOG_INFO, "CI finished");
+      Timer.clear(timer_handle);
       return;
   }
-
 }
 
 /*********************************************************************************************************/
 /*                                              main/init                                                */
 /*********************************************************************************************************/
 Shelly.addEventHandler(shellyEventCb);
-Timer.set(scan_interval*1000, true, verificationEngine);
+let timer_handle = Timer.set(scan_interval*1000, true, verificationEngine);
