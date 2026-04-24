@@ -55,8 +55,6 @@ let current_restriction_setting = -1;
 let current_restriction_hysteresis_setting = 0.1;
 let overload_webhook_uri_setting = "";
 let log_level_setting = LOG_INFO;
-let cicd_verification_setting = false;
-let cicd_verification_webhook =""
 /*********************************************************************************************************/
 
 
@@ -527,13 +525,14 @@ function canLoad(current) {
   }
   else if (cool_down_time_remaining != -1)
     cool_down_time_remaining -= scan_interval * (consecutive_overrun_cnt + 1);
-   
   if (cool_down_time_remaining != -1)
     return false;
-  if (current_restriction_setting != -1 &&
+/*  if (current_restriction_setting != -1 &&
       current_restriction_setting < (current +
-      last_known_current[first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id]) *
+      last_known_current[first_to_last_to_shed[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)].id]) *
       (1 + current_restriction_hysteresis_setting))
+    return false; */
+  if (current_restriction_setting != -1 && current > current_restriction_setting)
     return false;
   return true;
 }
@@ -910,12 +909,18 @@ function processCurrentMeasurements(current, err_code, err_msg) {
   //print("Current: " + total + ", lastKnown: " + last_known_current);
   //print("coolDownTimeRemaining: " + cool_down_time_remaining);
   
+  //print("####" + last_known_current[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)] + "<=" + current_restriction_setting *
+  //         (1-current_restriction_hysteresis_setting));
   if (idx_next_to_toggle_off < first_to_last_to_shed.length && must_shed) {
     direction = "shedding";
     time_to_test_loading = time_to_test_loading_setting;
   }
-  else if (nextIdxToLoad(idx_next_to_toggle_off) != null && can_load && total + 
-           last_known_current[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)] <= fuse_rating_setting) {
+  else if ((current_restriction_setting == -1 && nextIdxToLoad(idx_next_to_toggle_off) != null && can_load && total + 
+           last_known_current[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)] <= fuse_rating_setting) ||
+           (current_restriction_setting != -1 && nextIdxToLoad(idx_next_to_toggle_off) != null && can_load && total + 
+           last_known_current[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)] <= fuse_rating_setting && total +
+           last_known_current[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)]  <= current_restriction_setting *
+           (1-current_restriction_hysteresis_setting))) {
     direction = "loading";
 	time_to_test_loading = time_to_test_loading_setting;
   }
