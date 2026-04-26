@@ -93,7 +93,7 @@ of programatically initiated re-configurations to ensure adequate life-time of t
 Following script setting/HTTP APIs are supported (GET):
 
 **Hostname:**<br>
-*http://"ShellyURL"/rpc/KVS.Set?key="hostname_setting"&value=<hostname>*<br>
+*http://"ShellyURL"/rpc/KVS.Set?key="hostname_setting"&value=\<hostname>*<br>
 Sets the hostname of the Shelly device, hostname is needed for asynchronous status Webhook reporting.
 
 **Group fuse rating:**<br>
@@ -104,22 +104,11 @@ Sets the group fuse rate rating.
 *http://<"ShellyURL">/rpc/KVS.Set?key="fuse_char_setting"&value=\<"B" | "C" | "D" | "K" | "Z"\>*<br>
 Sets the group fuse characteristics.
 
-**Shedding margin settings:**<br> 
-*http://<"ShellyURL">/rpc/KVS.Set?key="margin_factor_setting"&value=<margin_factor>*<br>
-Sets the margin factor from for which the theoretical group fuse trip time is divided by 
-to determin the actual shedding time.
-
-**Group fuse cool down time:**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="cool_down_time_setting"&value=<margin_fator>*<br>
-Sets the group fuse cool down time in secoonds applied after the group fuse have been overloaded until it can be
-re-loaded. This time is applied after shedding due to overload happened before it may re-load the fuse, but it is also
-rellevant when the fuse was temporarilly re-loaded during a time-period shorter than the shedding time, if the fuse is again
-overloaded before the "cool_down_time_setting" timer has expired a shedding event will immediately comence.
-
-**Shedding group channel definition (first_to_last_to_shed):**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="first_to_last_to_shed"&value=<["ch0,ch1,ch2,ch3, ...]>*<br> 
-Sets the array of channels to monitor and shed in reverse priority order (first element represents the channel with the least priority).
-Each element is represented by a JSON object with key:value pairs:<br>
+**Shedding group settings:**<br> 
+*http://<"ShellyURL">/rpc/KVS.Set?key="shed_chan_ptr"&value=[\<key2firstToShed>, \<key2secondToShed>, \<key2thirdToShed>, ...]*<br>
+Sets the KVS key names to where the shedding chnnel definitions are stored, the first channel defined is the first to be shedded, any key name can be used.
+The shedding channels are defined as:
+Each channel is represented by a JSON object with key:value pairs:<br>
 {addr: <URI|IPaddress|loacalhost>, gen:<shelly_generation>, type: <"relay"|switch|...>, id: <channel_id>, shed: <true|false>, measure: <true|false> <br>
 
 * **addr**: Defines the IP address of the shelly device to participate in the shedding group. If set to "localhost" the local shelly device (same as the script runs on) is addressed and synchronous calls will be used to operate/shed the channels, otherwise HTTP RPCs will be used 
@@ -137,6 +126,21 @@ potentially can participate in providing current measurement to be used by the s
 * **measure**: Defines weather the channel is to be used for group fuse current measurement <true | false>
 
 Obviously, if both "shed" and "measure" is set to false, the channel is redundant and will in no way participate in the shedding group.
+
+The channels can be provisioned through a Web RPC:
+*http://<"ShellyURL">/rpc/KVS.Set?key=<"channelKey">&value=Channel JSON object.*<br>
+
+**Shedding margin settings:**<br> 
+*http://<"ShellyURL">/rpc/KVS.Set?key="margin_factor_setting"&value=<margin_factor>*<br>
+Sets the margin factor from for which the theoretical group fuse trip time is divided by 
+to determin the actual shedding time.
+
+**Group fuse cool down time:**<br>
+*http://<"ShellyURL">/rpc/KVS.Set?key="cool_down_time_setting"&value=<margin_fator>*<br>
+Sets the group fuse cool down time in secoonds applied after the group fuse have been overloaded until it can be
+re-loaded. This time is applied after shedding due to overload happened before it may re-load the fuse, but it is also
+rellevant when the fuse was temporarilly re-loaded during a time-period shorter than the shedding time, if the fuse is again
+overloaded before the "cool_down_time_setting" timer has expired a shedding event will immediately comence.
 
 **Test loading time:**<br>
 *http://<"ShellyURL">/rpc/KVS.Set?key="time_to_test_loading_setting"&value=\<time_to_test_loading\>*<br>
