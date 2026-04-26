@@ -164,16 +164,7 @@ function parseQuery(queryString) {
 }
 
 function shedderEndPoint(req, res) {
-  //print(JSON.stringify(req.query));
-  //print(req.query);
-  //print(parseQuery(req.query).key);
-  //print(typeof(parseQuery(req.query).key));
-  //print(parseQuery(JSON.parse(req.query).key));
-  //print(JSON.parse(req.query).method);
   let key_values = parseQuery(req.query);
-  //print(key_values);
-  //print(Object.keys(key_values));
-  //print(Object.keys(key_values)[0]);
   switch(Object.keys(key_values)[0]) {
     case "factory_reset_to_default":
       log(LOG_WARN, "Factory reset to default ordered, will delete all KVS entries related to this script and restart the script");
@@ -244,8 +235,6 @@ function shedderEndPoint(req, res) {
       let ordered_simulation_current = new Array(ordered_simulation_current_str.length);
       try {
         ordered_simulation_current = ordered_simulation_current_str.map(Number);
-        //print(ordered_simulation_current_str);
-        //print(ordered_simulation_current);
       }
       catch (error) {
         log(LOG_WARN, "error");
@@ -329,7 +318,6 @@ function shedderEndPoint(req, res) {
       }
       
     case "getLoadStatus":
-      //print("Answered load_status request");
       res.body = JSON.stringify({loadDirection:direction ,
                                   overLoadTime:over_load_time, coolDownTimeRemaining:cool_down_time_remaining,
                                   lastKnownCurrent:last_known_current,
@@ -445,11 +433,6 @@ function checkKVS() {
 /* function shellyEventCb()
  * A shelly or user defined event has been triggered */
 function shellyEventCb(event) {
-  //print("event.component" + event.component);
-  //print("event.info" + event.info);
-  //print("event.info.event" + event.info.event);
-  //print("Component " + Object.keys(event.component)[0]);
-  //print("JSON " + JSON.stringify(event))
   switch (event.name) {
     case "script":
       switch (event.info.event) {
@@ -486,7 +469,6 @@ function getTripTime(current) {
     if (fuse_short_trip_current_table[i].fuse_char == fuse_char_setting) {					// Performs a check against the fuse short
       found = true;																			// characteristics provided by
       if (fuse_short_trip_current_table[i].over_current < current/fuse_rating_setting) {	// by "fuse_load_trip_time_table" in
-        //log(LOG_WARN,"Short detected");										                // accordance with IEC 60269
         return 0;
       }
     }
@@ -514,8 +496,6 @@ function getTripTime(current) {
  * and characteristics as provided by getTripTime() functions and applies a safety margin defined by 
  * and applies a margin as defined by "margin_factor_setting" */
 function mustShed(current) {
-  //print("overload time: " + over_load_time );
-  //print("consecutive_overrun_count :" + consecutive_overrun_count);
   if (current_restriction_setting != -1 && current > current_restriction_setting) {
     log(LOG_INFO, "The total curret exceeds northbound ordered current restriction " + 
         current + " A > " + current_restriction_setting + "A");
@@ -555,7 +535,6 @@ function mustShed(current) {
  * After an overload situation, the fuse is not allowed to take more load until the 
  * fuse has cooled down for "cool_down_time_setting" seconds. */
 function canLoad(current) {
-  //print("nextIdxToLoad: " + nextIdxToLoad(idx_next_to_toggle_off));
   if (current > fuse_rating_setting) {
     cool_down_time_remaining = cool_down_time_setting;
     return false
@@ -575,11 +554,6 @@ function canLoad(current) {
     cool_down_time_remaining -= scan_interval * (consecutive_overrun_cnt + 1);
   if (cool_down_time_remaining != -1)
     return false;
-/*  if (current_restriction_setting != -1 &&
-      current_restriction_setting < (current +
-      last_known_current[first_to_last_to_shed[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)].id]) *
-      (1 + current_restriction_hysteresis_setting))
-    return false; */
   if (current_restriction_setting != -1 && current > current_restriction_setting)
     return false;
   return true;
@@ -600,7 +574,6 @@ function get_current(cb, params) {
   remaining_measurements = first_to_last_to_shed.length;
   measurement_session_id++;
   if (simulation) {
-    //print("Getting current in simulation mode");
     for (let i = 0; i < first_to_last_to_shed.length; i++) {
       if (switch_state[first_to_last_to_shed.length-1-i] && first_to_last_to_shed[i].measure) {
 		get_current_immediate_cb(Number(simulated_current[first_to_last_to_shed.length-1-i]), 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
@@ -638,20 +611,16 @@ function get_current_immediate_cb(chanel_current, error, error_msg, params) {
 	return;
   }
   if (params.sessionId != measurement_session_id) {
-    print("missmatching session ID: " + params.measurement_session_id);
+    log(LOG_WARN, "missmatching session ID: " + params.measurement_session_id);
 	return;
   }
   if (!measurement_ongoing) {
-    print("Expected measurement was ongoing, but it is not");
 	return;
   }
   remaining_measurements--;
-  //print("Channel current: " + chanel_current);
   current_vector[first_to_last_to_shed.length-1-params.idx] = chanel_current;
   if (switch_state[first_to_last_to_shed.length-1-params.idx])
 	last_known_current[first_to_last_to_shed.length-1-params.idx] = chanel_current;
-  //print("Remaining measurements: " + remaining_measurements + " Vector: " + current_vector + "Length: " + current_vector.length);
-
   if (!remaining_measurements) {
 	Timer.clear(measurement_timer);
 	measurement_ongoing = false;
@@ -712,7 +681,6 @@ function turnCallBack(result, error_code, error_message, idx) {
 /* function updateSettingsFromKVS();
  * This functions sets the script variables from the Shelly Key-Value store which can be user set. */
 function updateSettingsFromKVS() {
-  //print("GOT KVS UPDATE");
   queueShellyCall("KVS.GetMany", {},
     function (result, error_code, error_message) {
       for (let KVS in result.items) {
@@ -754,13 +722,6 @@ function updateSettingsFromKVS() {
             }
             break;
 
-          case "first_to_last_to_shed":
-            if (first_to_last_to_shed != result.items[KVS].value) {
-              first_to_last_to_shed = result.items[KVS].value;
-              log(LOG_INFO, "Shedding scheme has changed to: " + result.items[KVS].value);
-            }
-            break;
-
         case "time_to_test_loading_setting":
             if (time_to_test_loading_setting != result.items[KVS].value) {
               time_to_test_loading_setting = result.items[KVS].value;
@@ -797,23 +758,18 @@ function updateSettingsFromKVS() {
             }
             break;
 
-          case "factory_reset_to_default":
-            log(LOG_INFO, "Reboot to factory default");
-            queueShellyCall("KVS.List", {}, 
-                            function (result, error_code, error_message) {
-		                      for (key in result.keys) {
-		                        queueShellyCall("KVS.DELETE", {key:key},
-		                          function(result, error_code, error_message) {
-                                    return;
-                                  }
-                                );
-		                      }
-                              return;
-                            }
-            );
-            Timer.set(5000, false, reboot);
+          case "shed_chan_ptr":
+            let shed_chan_ptr = JSON.parse(result.items[KVS].value);
+            for (i=0; i<shed_chan_ptr.length; i++) {
+              Shelly.call("KVS.Get", {key: shed_chan_ptr[i]},
+                function (res, err, err_str) {
+                  if(def(res) && def(res.value) && res.value != JSON.stringify(first_to_last_to_shed[i]))
+                    first_to_last_to_shed[i] = JSON.parse(res.value);
+                }
+              );
+            }
             break;
-                       
+                
           default:
             break;
         }
@@ -864,10 +820,24 @@ function deleteKV(keys, cb, params) {
 function deleteAllKVS(cb, params) {
   log(LOG_INFO, "Deleting KVS entries used for the ShellyShedding script, when the ShellyShedding" +
                 "script restarts it will populate the KVS store with factory default settings");
-  deleteKV(["hostname_setting", "fuse_rating_setting", "fuse_char_setting", "margin_factor_setting",
-           "cool_down_time_setting", "first_to_last_to_shed", "time_to_test_loading_setting",
-           "scan_interval", "current_restriction_hysteresis_setting", "overload_webhook_uri_setting",
-           "log_level_setting"], cb, params);
+  let delete_items = ["hostname_setting", "fuse_rating_setting", "fuse_char_setting", "margin_factor_setting",
+                      "cool_down_time_setting", "first_to_last_to_shed", "time_to_test_loading_setting",
+                      "scan_interval", "current_restriction_hysteresis_setting", "overload_webhook_uri_setting",
+                      "log_level_setting"];
+  Shelly.call("KVS.Get", {key: "shed_chan_ptr"},
+    function(res, err, err_str, params) {
+
+      let all_delete_items = params.delete_items;
+      if (def(res), def(res.value)){
+        all_delete_items.push("shed_chan_ptr");
+        let value = JSON.parse(res.value);
+        for (let i=0; i<value.length; i++)
+          all_delete_items.push(value[i]);
+      }
+      deleteKV(all_delete_items, params.cb, params.params);
+    },
+    {cb:cb, params:params, delete_items:delete_items}
+  );
 }
 
 /* function updateKvs()
@@ -880,12 +850,17 @@ function updateKvs() {
   createKV("fuse_char_setting", fuse_char_setting, false);
   createKV("margin_factor_setting", margin_factor_setting, false);
   createKV("cool_down_time_setting", cool_down_time_setting, false);
-  createKV("first_to_last_to_shed", first_to_last_to_shed, false);
   createKV("time_to_test_loading_setting", time_to_test_loading_setting, false);
   createKV("scan_interval", scan_interval, false);
   createKV("current_restriction_hysteresis_setting", current_restriction_hysteresis_setting, false);
   createKV("overload_webhook_uri_setting", overload_webhook_uri_setting, false);
   createKV("log_level_setting", log_level_setting, false);
+  let shed_chan_ptr = [];
+  for (let i=0; i<first_to_last_to_shed.length; i++) {
+    createKV("shed_chan_" + i, JSON.stringify(first_to_last_to_shed[i]), false);
+    shed_chan_ptr.push("shed_chan_" + i);
+  }
+  createKV("shed_chan_ptr", JSON.stringify(shed_chan_ptr), false);
 }
 
 function nextIdxToLoad(idx_next_to_toggle_off) {
@@ -926,7 +901,6 @@ function scanCurrent() {
     return;
   }
   running = true;
-  //print("setting state to running");
   if (get_current(processCurrentMeasurements)) {
     last_overrun = true;
     overrun_cnt++;
@@ -948,17 +922,7 @@ function processCurrentMeasurements(current, err_code, err_msg) {
   last_overrun = false;
   total = current;
   let must_shed = mustShed(total);
-  //print("mustShed: " + must_shed);
   let can_load = canLoad(total);
-  //print("canLoad: " + can_load);
-  //print("nextIdxToLoad: " + nextIdxToLoad(idx_next_to_toggle_off));
-  //print("nextIdxToShed: " + idx_next_to_toggle_off);
-  //print("timeToTestLoading: " + time_to_test_loading);
-  //print("Current: " + total + ", lastKnown: " + last_known_current);
-  //print("coolDownTimeRemaining: " + cool_down_time_remaining);
-  
-  //print("####" + last_known_current[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)] + "<=" + current_restriction_setting *
-  //         (1-current_restriction_hysteresis_setting));
   if (idx_next_to_toggle_off < first_to_last_to_shed.length && must_shed) {
     direction = "shedding";
     time_to_test_loading = time_to_test_loading_setting;
@@ -977,22 +941,16 @@ function processCurrentMeasurements(current, err_code, err_msg) {
     if (time_to_test_loading != -1 && time_to_test_loading - scan_interval * (consecutive_overrun_cnt + 1) < 0) {
       time_to_test_loading = -1;
       if (nextIdxToLoad(idx_next_to_toggle_off) != null) {
-        //print("TestLoading, next to load: " + nextIdxToLoad(idx_next_to_toggle_off));
         for(let i=first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off); i<first_to_last_to_shed.length; i++)
           last_known_current[i] = 0;
         log(LOG_INFO, "Will test load despite that the last known load does not fit the load budget");
-        //print(last_known_current);
       }
     }
     else if (time_to_test_loading != -1)
       time_to_test_loading -= scan_interval * (consecutive_overrun_cnt + 1);
-  }
-  //print("Direction: " + direction);
-  
-  
+  }  
   if (direction == "loading") {
     coasting_report_cnt = 0;
-    //if (idx_next_to_toggle_off > 0) { 
 	let idx_next_to_toggle_off_tmp = nextIdxToLoad(idx_next_to_toggle_off);
     if (idx_next_to_toggle_off_tmp != null) {
 	  idx_next_to_toggle_off = idx_next_to_toggle_off_tmp;
