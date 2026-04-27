@@ -325,7 +325,7 @@ function shedderEndPoint(req, res) {
       break;
       
     case "getTripTime":
-      if (def(trip_current)) {
+      if (def(key_values.getTripTime)) {
         let trip_current = Number(key_values.getTripTime);
         res.body = JSON.stringify({tripData:{current:trip_current, tripTime:getTripTime(trip_current),
                                   shedMarginFactor:margin_factor_setting}});
@@ -342,7 +342,7 @@ function shedderEndPoint(req, res) {
         if(first_to_last_to_shed[i].shed) prio++;
       for (let i = 0; i < switchStatus.length; i++) {
         switchStatus[i] = first_to_last_to_shed[i];
-        switchStatus[i].switch_state = switch_state[switchStatus[i].id] == true ? "on" : "off";
+        switchStatus[i].switch_state = switch_state[i] == true ? "on" : "off";
         if(first_to_last_to_shed[i].shed) {
           switchStatus[i].priority = prio-1;
           prio--;
@@ -614,7 +614,7 @@ function get_current_immediate_cb(chanel_current, error, error_msg, params) {
 	return;
   }
   if (params.sessionId != measurement_session_id) {
-    log(LOG_WARN, "mismatching session ID: " + params.session_id);
+    log(LOG_WARN, "mismatching session ID: " + params.sessionId);
 	return;
   }
   if (!measurement_ongoing) {
@@ -964,7 +964,7 @@ function processCurrentMeasurements(current, err_code, err_msg) {
 						 fuseCharacteristics: fuse_char_setting,
 						 fuseCurrent: total,
 						 currentRestriction: (current_restriction_setting == -1 ? false:true),
-						 noOfSheddedChanels: idx_next_to_toggle_off,
+						 noOfSheddedChanells: idx_next_to_toggle_off,
 						 disconnected: null,
 						 reconnected: {idx: idx_next_to_toggle_off, 
 									   deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
@@ -1003,7 +1003,7 @@ function processCurrentMeasurements(current, err_code, err_msg) {
 						   fuseCharacteristics: fuse_char_setting,
 						   fuseCurrent: total,
 						   currentRestriction: (current_restriction_setting == -1 ? false:true),
-						   noOfSheddedChanels: first_to_last_to_shed,
+						   noOfSheddedChanells: idx_next_to_toggle_off,
 						   disconnected: (idx_next_to_toggle_off<first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off, 
 									      deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
 										  deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
@@ -1055,7 +1055,7 @@ function processCurrentMeasurements(current, err_code, err_msg) {
 						 fuseCharacteristics: fuse_char_setting,
 						 fuseCurrent: total,
 						 currentRestriction: (current_restriction_setting == -1 ? false:true),
-						 noOfSheddedChanels: first_to_last_to_shed,
+						 noOfSheddedChanells: idx_next_to_toggle_off,
 						 disconnected: null,
 						 reconnected: null,
 			  			 nextToDisconnect: (nextIdxToShed(idx_next_to_toggle_off-1) != undefined ? {idx: nextIdxToShed(idx_next_to_toggle_off), 
