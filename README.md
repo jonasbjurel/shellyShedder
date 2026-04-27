@@ -367,6 +367,8 @@ contentions. Whenever the current measured through this shedding device is above
 to normal priority principles. To avoid oscilations a 
 "current_restriction_hysteresis_setting" hysteresis factor is applied before the
 re-loading of channels may happen. **A value of 0.1 to 0.2 is recommended**
+8. The shedder logs all events and decisions. Adjust "log_level_setting" to control verbosity (0=VERBOSE through 4=CRITICAL). **A value of 3 (LOG_WARN) is recommended for normal operation**.
+
 
 ## Watchdog script
 This general purpose watchdog script monitors the health and status of managed scripts and the device itself.
