@@ -7,26 +7,27 @@ A general shelly load shedding script
 License: Apache 2 
 
 ## Purpose, principles and use cases:
-The purpose of this Shedder script is to provide means to control current drawing through group fuses, grid termination points, etc., such that unnecessary fuse shedding happens or excessive grid cost is charged due to high current draw, and even control of the power draw at forcasted high cost periods.
+The purpose of this Shedder script is to provide means to control current drawing through group fuses, grid termination points, etc., such that unnecessary fuse shedding happens or excessive grid costs are avoided.
 
 The shedder script provide means to support multiple use-cases one by one, or in combination.
-The script can work in atonomous shedding mode, measuring and shedding channels on the local shelly device it is running on. The script can also control a distributed setup, controlling a set of remote shelly devices all participating in a shedding group. Finally the script may also participate in a larger loadbalancing setup aimed to control the grid current and power draw such that unnecessarry current peaks occur - potentially resulting penalty fees, or excessive energy bills at high cost periods.
+The script can work in atonomous shedding mode, measuring and shedding channels on the local shelly device it is running on. The script can also control a distributed setup, controlling a set of remote shelly devices.
 
-The shedder script manages a single phase only, 3 separate script instances can be deployed to manage a 3 phase system. If so, there is no coordination between the script instances and the applicability to manage 2-, or 3-phase loads is questionable unless careful analysis have been conducted. It is not recommended to manage 3-phase motor loads at all as the phases disconnect asynchrounusly which could destroy the motor or trip the motor protection (3-phase pumps, 3-phase heat-pumps, etc.)
+The shedder script manages a single phase only, 3 separate script instances can be deployed to manage a 3 phase system. If so, there is no coordination between the script instances and the applicability is therefore limited to scenarios where the shelly devices are connected to the same grid phase or to separate grid phases without any cross-phase coupling or restrictions.
 
 ### Protecting a single phase group fuse from tripping in atonomous mode.
-There are many occations where a group fuse can not be dimentioned for all the potential loads connected to it, this can because the feed cabling is not dimentioned for higher fuse ratings, because of the cost of higher rated grid fuses, or otherwise. Shedding is a technique that controls the current through a fuse by disconnecting low priority loads when needed to not trip the fuse - this shedder script does exactly that. The shedder script provides several modes of operation of which the atonomous mode is the simplest-, most robust/reliable-, and with the quickest response time.
+There are many occations where a group fuse can not be dimentioned for all the potential loads connected to it, this can because the feed cabling is not dimentioned for higher fuse ratings, because of other limitations in the installation, or simply because future load expansions are not foreseen.
 
 <img src="pictures/Atonomous.png" width="75%">
 
 *Figure 1. Shelly shedding script in an atonomus shedding configuration.*<br><br>
-In atonomous mode the script controls the relays on the same shelly device it is running on. Apart from configuration and status updates there is no requirement on network connectivity (Ethernet/WiFi), the basic functions remain intact even if the connectivity fails. Further more, all current measurements and relay control happens locally with minimum latency resulting in prompt respone times for current measurement and relay control. Any Shelly device of generation 2 and higher, carying one or more relays with current measure capabilities can be used. Each of the shelly relay channels is configured with it's shedding priority, wether it is allowed to be shedded, wether it should be part of the fuse current measurement, etc. In the example given in *Figure 1* the scripts runs on a Shelly device with 4 relay channels.<br>
+In atonomous mode the script controls the relays on the same shelly device it is running on. Apart from configuration and status updates there is no requirement on network connectivity (Ethernet/WiFi). The current measurement needed for the load shedding decisions are performed locally on the same device that also executes the shedding actions. This provides for a very robust and responsive shedding scheme with short latencies and minimal overhead, making it suitable for real-time applications. A typical autonomous shedding group may look like:
+
 * The last channel (chanel 3) is connected to loads that has the lowest priority and will be disconnected/shedded first and is hence configured with a priority of 2, in this example a car charger .<br>
 * Channel 2, has the next lowest priority and is configured with a priority of 1, in this example it is connected to water heater.<br>
 * Channel 1 has the highest priority among the channels that can be disconnected/shedded and have thus been configured with a priority of 0. In this example it is connected to a heating system.<br>
 * Channel 0 is in this example configured to never disconnect/shed and is in this example connected to loads which you would never want to disconnect: lights, out-lets, refridgerator, stove, ...<br>
 
-As the group fuse rating gets over-subscribed the loads gets disconnected/shedded in priority order. If for instance the induction stove starts to draw massive amount of current the car charger may be disconnected/shedded, if at some time later the water heater needs to heat the water it may be disconnected/shedded, and if some one now connects a water-boiler to one of the outlets connected to Channel-0 the room heating is likely disconnected/shedded. As the loads decrease (water-boiler is un-plugged, dinner is ready, the warm water has heated) the loads are re-connected one after one in priority order as long ase the group-fuse is not over-subscribed.
+As the group fuse rating gets over-subscribed the loads gets disconnected/shedded in priority order. If for instance the induction stove starts to draw massive amount of current the car charger may be immediately disconnected.
 
 ### Protecting a single phase group fuse from tripping in distributed mode.
 In case the atonomous mode shedding is not suitable because of the cabling topology, distances, etc. a distributed shedding mode can be applied.
@@ -34,7 +35,7 @@ In case the atonomous mode shedding is not suitable because of the cabling topol
 <img src="pictures/Distributed.png" width="75%">
 
 *Figure 2. Shelly shedding script in a distributed shedding configuration.*<br><br>
-In the distributed shedding mode setup, the shedding script is running on one of the Shelly devices part of the shedding group and interacts with several remote Shelly devices also participating in the shedding group providing current readings, control of relays, etc.<br>
+In the distributed shedding mode setup, the shedding script is running on one of the Shelly devices part of the shedding group and interacts with several remote Shelly devices also participating in the shedding group.
 Although in theory this setup provides the same functionality as for the atonomous mode - the characteristics is quite different:
 * It requires connectivity to work.
 * Lost connectivity could lead to unexpected behaviour impacting robustness.
@@ -46,7 +47,7 @@ Another use case is to regulate the load drawn from the grid such that the curre
 <img src="pictures/GridLoadBalancing.png" width="75%">
 
 *Figure 3. Shelly shedding script in a grid load-balancing configuration.*<br><br>
-In this scenario the grid current is reported through the utility meter's HAN port to some kind of automation entity. At currents close to the threshold, the automation entity can request capping of the current draw from one or several Shelly devices running the shedding script. The automation entity does not control the shedding priorities as that is thee task of each shedding script. 
+In this scenario the grid current is reported through the utility meter's HAN port to some kind of automation entity. At currents close to the threshold, the automation entity can request capping of the load through the "current_restriction_setting" API, effectively instructing the shedder to reduce the load such that the total grid current is capped below the threshold.
 
 ## Description: 
 This current shedding script maintains a load that prevents a single phase group fuse to trip-, 
@@ -111,8 +112,7 @@ The shedding channels are defined as:
 Each channel is represented by a JSON object with key:value pairs:<br>
 {addr: <URI|IPaddress|loacalhost>, gen:<shelly_generation>, type: <"relay"|switch|...>, id: <channel_id>, shed: <true|false>, measure: <true|false> <br>
 
-* **addr**: Defines the IP address of the shelly device to participate in the shedding group. If set to "localhost" the local shelly device (same as the script runs on) is addressed and synchronous calls will be used to operate/shed the channels, otherwise HTTP RPCs will be used 
-causing  latencies and may call for slightly longer "scan_interval" times (see below).
+* **addr**: Defines the IP address of the shelly device to participate in the shedding group. If set to "localhost" the local shelly device (same as the script runs on) is addressed and synchronous calls are made, otherwise asynchronous RPC calls over a layer-3 IP network is used. Remote device access will require network bandwidth and may lead to collisions with other calls on the remote shelly devices, causing  latencies and may call for slightly longer "scan_interval" times (see below).
 
 * **gen**: Defines the shelly device generation.
 
@@ -173,21 +173,48 @@ Sets the URI endpoint for the shedder status event Webhooks.
 *http://<"ShellyURL">/rpc/KVS.Set?key="log_level_setting"&value=<"LOG_CRITICAL" | "LOG_ERROR" | "LOG_WARN" | "LOG_INFO" | "LOG_VERBOSE">*<br>
 Sets log level.
 
+## Watchdog script configuration (persistant)
+This general purpose watchdog script monitors the health and status of managed scripts and the device itself.
+The watchdog script restarts scripts that have stopped running and reboots the device if it becomes unresponsive.
+The watchdog script's behaviour depends on script configuration settings with default values as defined in the
+script under "default settings...". The default script configurations are persistantly written to the
+shelly KVS (Key Value Store) at the first startup of the script, or after a factory reset of the script/
+or the device. The default settings can be changed through the provided Shelly KVS HTTP APIs,
+or alternatively setting the KVS store from the shelly local- or cloud- web-page.<br>
+CAUTION: The shelly KVS store is using a storage with limited number of writes (~100 K), limit the number
+of programatically initiated re-configurations to ensure adequate life-time of the device.
+
+Following watchdog script setting/HTTP APIs are supported:
+
+**Watchdog configuration:**<br>
+*http://<"ShellyURL">/rpc/KVS.Set?key="watchdog_config"&value=<watchdog_config_json>*<br>
+Sets the watchdog script configuration as a JSON object. The configuration object contains the following parameters:<br>
+{scripts: {<script_name>: null, ...}, httpTimeout: <timeout_seconds>, check_time: <check_interval_seconds>, consecutive_errs: <error_threshold>, log_level_setting: <log_level>}
+
+* **scripts**: A map of script names to monitor (e.g., {"shedder": null}). Script IDs are automatically populated at startup.
+* **httpTimeout**: HTTP request timeout in seconds for monitoring operations.
+* **check_time**: Interval in seconds between health checks of managed scripts and device responsiveness.
+* **consecutive_errs**: Number of consecutive errors before restarting a script or rebooting the device.
+* **log_level_setting**: Log level for watchdog output (0=LOG_VERBOSE, 1=LOG_INFO, 2=LOG_WARN, 3=LOG_ERROR, 4=LOG_CRITICAL).
+
+**Example configuration:**<br>
+*http://<"ShellyURL">/rpc/KVS.Set?key="watchdog_config"&value={"scripts":{"shedder":null},"httpTimeout":10,"check_time":10,"consecutive_errs":3,"log_level_setting":1}*<br>
+
 ## Script interaction APIs (non persistant)
-This shedder script provides non persistant run-time HTTP APIs that enables interaction with the shedder script and that retreives shedder information as well as asynchronous HTTP Webhook call-backs reporting important events to a pre-defined HTTP end-point. This set of APIs require that the Shelly script Id is part of the request URL. The script ID is stored in KVS and can be fetched through the "http://<"ShellyURL">/rpc/KVS.Get?key=<shedder_script_id>".
+This shedder script provides non persistant run-time HTTP APIs that enables interaction with the shedder script and that retreives shedder information as well as asynchronous HTTP Webhook call-backs regarding shedder status changes.
 
 ### Setting non persistant properties through HTTP APIs
 
 **Factory reset:**<br>
 *http://"ShellyURL"/script/\<scriptId>/shedder?factory_reset_to_default*<br>
-Resets and restarts the shedder script to factory default. Default settings as defined in the script will persistantly be applied to the KVS store and any custom configurations needs to be applied to the Shelly KVS store as described under
+Resets and restarts the shedder script to factory default. Default settings as defined in the script will persistantly be applied to the KVS store and any custom configurations needs to be applied again as described in
 the "Script configuration (persistant)" section above. This method does not reset the shelly device as a whole to factory default, but only the shedder script it self.
 
 Response body: Undefined
 
 **Restart:**<br>
 *http://"ShellyURL"/script/\<scriptId>/shedder?restart*<br>
-Restarts the shedding script, all persistant configurations are retained - but the the internal state machine is re-started, meaning that all shedding events-/states-, over-load-, cooling-, current-restriction-, etc. are reset.
+Restarts the shedding script, all persistant configurations are retained - but the the internal state machine is re-started, meaning that all shedding events-/states-, over-load-, cooling-, current-restrictions are reset to initial state.
 
 Response body: Undefined
 
@@ -207,7 +234,7 @@ Response body: A JSON object<br>
 
 **Simulation:**<br>
 *http://"ShellyURL"/script/\<scriptId>/shedder?simulation=<true|false> [& turnRelayOnSimulation=<true|false>]*<br>
-Sets or un-sets the shedder script simulation mode. When simulation mode is set, the currents are not measured from the physical channels, but are set by the "simulated_current" API as described below. 
+Sets or un-sets the shedder script simulation mode. When simulation mode is set, the currents are not measured from the physical channels, but are set by the "simulated_current" API as described below. The relays/switches can also be controlled manually or by other scripts while in simulation mode.
 If turnRelayOnSimulation is set to "false" the physical relays are not operated but the intended relay operations can be
 observed by log-entries in the Shelly console, or by scanning the the switch state, or by
 monitoring the status web-hook event. If turnRelayOnSimulation is set to "true" the relays are operated even if in simulation mode.
@@ -222,6 +249,20 @@ Sets the simulated current for each of the shedder channels.
 
 Response body: A JSON object<br>
 {simulatedCurrent:[ch0_curr, ch1_curr, ch2_curr, ch3_curr,...]}
+
+### Watchdog script interaction APIs (non persistant)
+
+**Get watchdog metrics:**<br>
+*http://"ShellyURL"/script/\<scriptId>/watchdog?watchDogMetrics*<br>
+Retrieves the watchdog health metrics including uptime, error counts, and script restart counts.
+
+Response body: A JSON object<br>
+{watchDogMetrics: {upTime: <seconds>, deviceErrors: <count>, scriptErrors: {<script_name>: <count>, ...}, scriptRestarts: {<script_name>: <count>, ...}}}
+
+* **upTime** - Watchdog script uptime in seconds since startup.
+* **deviceErrors** - Number of accumulated device errors (consecutive unresponsiveness events).
+* **scriptErrors** - Map of script names to their accumulated error counts.
+* **scriptRestarts** - Map of script names to their total restart counts.
 
 ### Requesting status through HTTP APIs
 
@@ -252,7 +293,7 @@ Response body: A JSON object<br>
                       measurementFailCnt:<value>,
                       measurementTimeoutCnt:<value>}}
 
-* **metricsUpdated:** Indicates if this was the first "getPerformanceMetricMeasurements" call after a successful "measurePerformanceMetrics" call, indicating weather the measurements are fresh/latest for this call.
+* **metricsUpdated:** Indicates if this was the first "getPerformanceMetricMeasurements" call after a successful "measurePerformanceMetrics" call, indicating weather the measurements are fresh/latest or stale from a previous measurement.
 * **upTime:** Script uptime in seconds.
 * **cpuLoadPerc:** Script portion of device CPU loading in %.
 * **memUsed:** Script memory usage in Bytes.
@@ -311,7 +352,7 @@ shedMarginFactor:<margin_factor_setting>}}
 *http://"ShellyURL"/script/\<scriptId>/shedder?getSwitchStatus*<br>
 Response body: A JSON object:<br>
 {switchStatus:[
-{addr: <URI|IPaddress|loacalhost>, gen:<shelly_generation>2, type: <"relay"|switch|...>, id: <channel_id>, shed: <true|false>, measure: <true|false>, switch_state: <"on"|"off", priority: <prio>}, ...]}
+{addr: <URI|IPaddress|loacalhost>, gen:<shelly_generation>2, type: <"relay"|switch|...>, id: <channel_id>, shed: <true|false>, measure: <true|false>, switch_state: <"on"|"off", priority: <prio>}, ...][...]
 
 Each vector element represents a channel in the shedding group, the kv structure is almost identical to that in the "first_to_last_to_shed" script configuration. Two key/value pairs have been added:
 
@@ -357,7 +398,7 @@ fuse rating causing the normal loading mechanism to never reconnect the channel.
 a layer-3 IP network. Please note that the higher numbered entries (4 and 5 here) would be
 considered the highest priority - last turned off, and first turned on.
 If a measure/shed/load operation relates to a channel local to the shedding script (localhost) it
-will be handled synchronously with a neglectable latancy, otherwise asynchronous RPC calls with delays will be used creating latancies reducing the real-time performance and reponse times, in such case the
+will be handled synchronously with a neglectable latancy, otherwise asynchronous RPC calls with delays will be used creating latancies reducing the real-time performance and reponse times, in such cases
 "scan_interval" may need to be increased to avoid over-runs and unnecessarily worse performance.
 7. Current restriction ("current_restricion_setting") is a way for north-bound shedding
 systems to ask for a current limitation of this device due to northbound current
@@ -367,9 +408,16 @@ to normal priority principles. To avoid oscilations a
 "current_restriction_hysteresis_setting" hysteresis factor is applied before the
 re-loading of channels may happen. **A value of 0.1 to 0.2 is recommended**
 
+## Watchdog key considerations:
+1. The watchdog script monitors configured scripts at the interval defined by "check_time". A typical value is 10 seconds.
+2. Set "consecutive_errs" to define the threshold of consecutive errors before automatic restart or reboot. **A value of 3 is recommended**.
+3. If a configured script stops running, the watchdog will restart it after "consecutive_errs" failures have been detected.
+4. If the device becomes unresponsive, the watchdog will reboot the device after "consecutive_errs" failures have been detected.
+5. The watchdog logs all major events and decisions. Adjust "log_level_setting" to control verbosity (0=VERBOSE through 4=CRITICAL). **A value of 1 (LOG_INFO) is recommended for normal operation**.
+
 ## Contious integration
 The shedder script comes with an extensive automated verification script - "shedder.js" that aims to verify all the aspects of the shedder script in simulated mode. The real current measurement and
 relay operations are currently not verified, but needs to be verified manually.
 
 ## Contious deployment
-There is currently no automated script deployment, at current only agestone copy- and paste mechanisms from github to the actual shelly device exists. The plan is to be able to provide mechanisms to pull  script repos/branches/releases from github to the shelly device in a seamless way.
+There is currently no automated script deployment, at current only agestone copy- and paste mechanisms from github to the actual shelly device exists. The plan is to be able to provide mechanisms to push updates to the device from this repository.
