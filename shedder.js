@@ -140,8 +140,10 @@ function reboot() {
   Shelly.Reboot();
 }
 
+/* function restart()
+ * stops the script, the watchdog will restart it */
 function restart() {
-  Shelly.call('Script.Stop', {id: Shelly.getCurrentScriptId()});                                      //The watchdog will restart the script
+  Shelly.call('Script.Stop', {id: Shelly.getCurrentScriptId()});
 }
 
 function factoryReset() {
@@ -153,7 +155,7 @@ function parseQuery(queryString) {
   if (!queryString) 
 	return params;
   let pairs = queryString.split("&");
-  for (let i = 0; i < pairs.length; i++) {
+  for (let i=0; i<pairs.length; i++) {
     let pair = pairs[i].split("=");
     if (pair.length === 2)
       params[pair[0]] = pair[1];
@@ -181,7 +183,7 @@ function shedderEndPoint(req, res) {
       break;      
            
     case "simulation":
-      if(key_values.simulation === "true") {
+      if (key_values.simulation === "true") {
 		if (!def(key_values.turnRelayOnSimulation) || key_values.turnRelayOnSimulation === "false") {
 		  simulation = true;
 		  turn_relay_on_simulation = false;
@@ -338,9 +340,9 @@ function shedderEndPoint(req, res) {
     case "getSwitchStatus":
       let switchStatus = new Array(first_to_last_to_shed.length);
       let prio = 0;
-      for (let i = 0; i < first_to_last_to_shed.length; i++)
+      for (let i=0; i<first_to_last_to_shed.length; i++)
         if(first_to_last_to_shed[i].shed) prio++;
-      for (let i = 0; i < switchStatus.length; i++) {
+      for (let i=0; i<switchStatus.length; i++) {
         switchStatus[i] = first_to_last_to_shed[i];
         switchStatus[i].switch_state = switch_state[i] === true ? "on" : "off";
         if(first_to_last_to_shed[i].shed) {
@@ -389,18 +391,15 @@ function execQueuedShellyCalls(event) {
   if (shelly_call_records.length && calls < CALL_LIMIT) {
     calls ++;
     Shelly.call(shelly_call_records[0].meth, shelly_call_records[0].meth_param,
-                function(result, error_code, error_message, call_record) {
-		              call_record.cb(result, error_code, error_message,
-                        call_record.cb_params);
-                      calls--;
-                      //print(call_record.meth);
-                      //print(call_record.meth_param);
-		              //shelly_call_records.splice(0, 1);
-		              if (shelly_call_records.length && calls === CALL_LIMIT-2) {
-		                Shelly.emitEvent("continueExecQueuedShellyCalls", {});
-		                log(LOG_VERBOSE, "Resuming calls");
-		              }
-                }, shelly_call_records[0]
+      function(result, error_code, error_message, call_record) {
+        call_record.cb(result, error_code, error_message, call_record.cb_params);
+        calls--;
+		    if (shelly_call_records.length && calls === CALL_LIMIT-2) {
+		      Shelly.emitEvent("continueExecQueuedShellyCalls", {});
+		      log(LOG_VERBOSE, "Resuming calls");
+		    }
+      },
+      shelly_call_records[0]
     );
     shelly_call_records.splice(0, 1);
     if (shelly_call_records.length)
@@ -423,7 +422,7 @@ function shellyCallQueueEmpty() {
 function checkKVS() {
   queueShellyCall("KVS.List", { match: "*"}, 
     function(result, error_code, error_message) {
-      if(def(result) && result.rev !== last_kvs_rev) {
+      if (def(result) && result.rev !== last_kvs_rev) {
 	    last_kvs_rev = result.rev;
 	    Shelly.emitEvent("KVS", {});
       }
@@ -443,7 +442,6 @@ function shellyEventCb(event) {
         case "KVS":
           updateSettingsFromKVS();
           break;
-       
         default:
           break;
       }
@@ -468,7 +466,7 @@ function shellyEventCb(event) {
  *  "fuse_load_trip_time_table" */
 function getTripTime(current) {
   let found = false;
-  for (let i = 0; i < fuse_short_trip_current_table.length; i++) {
+  for (let i=0; i<fuse_short_trip_current_table.length; i++) {
     if (fuse_short_trip_current_table[i].fuse_char === fuse_char_setting) {
       found = true;
       if (fuse_short_trip_current_table[i].over_current < current/fuse_rating_setting) {
@@ -476,11 +474,12 @@ function getTripTime(current) {
       }
     }
   }
-  if (!found) return -1;
+  if (!found)
+    return -1;
   for (let i=0; i<fuse_load_trip_time_table.length; i++) {
     if (current / fuse_rating_setting < fuse_load_trip_time_table[i].over_current) {
       if (fuse_load_trip_time_table[i].trip_time === -1)
-		return -1;
+		    return -1;
       if (i===0 || fuse_load_trip_time_table[i-1].trip_time === -1)
         return fuse_load_trip_time_table[i].trip_time;
       let K = (fuse_load_trip_time_table[i].over_current - current/fuse_rating_setting)/
@@ -517,7 +516,8 @@ function mustShed(current) {
     log(LOG_INFO, "Fuse is overloaded at " + current + " A, it will trip in " + current_trip_time +
         " seconds, shedding will start in " + current_trip_time/margin_factor_setting  + " seconds");
   }
-  else over_load_time += scan_interval * (consecutive_overrun_cnt + 1);
+  else
+    over_load_time += scan_interval * (consecutive_overrun_cnt + 1);
   if (current_trip_time < min_trip_time) {
     min_trip_time = current_trip_time;
     log(LOG_INFO, "Fuse overload escalation, now at " + current + " A, it will trip in " +
@@ -578,30 +578,28 @@ function get_current(cb, params) {
   remaining_measurements = first_to_last_to_shed.length;
   measurement_session_id++;
   if (simulation) {
-    for (let i = 0; i < first_to_last_to_shed.length; i++) {
-      if (switch_state[first_to_last_to_shed.length-1-i] && first_to_last_to_shed[i].measure) {
-		get_current_immediate_cb(Number(simulated_current[first_to_last_to_shed.length-1-i]), 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
-      }
-      else {
-		get_current_immediate_cb(Number(0), 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
-      }
+    for (let i=0; i<first_to_last_to_shed.length; i++) {
+      if (switch_state[first_to_last_to_shed.length-1-i] && first_to_last_to_shed[i].measure)
+		    get_current_immediate_cb(Number(simulated_current[first_to_last_to_shed.length-1-i]), 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
+      else
+		    get_current_immediate_cb(Number(0), 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
     }
     return 0;
   }
-  else { 																					// No simulation of current
-    for (let i=0; i < first_to_last_to_shed.length; i++) {
+  else {
+    for (let i=0; i<first_to_last_to_shed.length; i++) {
       if (first_to_last_to_shed[i].addr === "localhost") {
-		  if (first_to_last_to_shed[i].measure)
-		    get_current_immediate_cb(Shelly.getComponentStatus("switch:" + first_to_last_to_shed[i].id).current, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
-		  else
-		    get_current_immediate_cb(0, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
+		    if (first_to_last_to_shed[i].measure)
+		      get_current_immediate_cb(Shelly.getComponentStatus("switch:" + first_to_last_to_shed[i].id).current, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
+		    else
+		      get_current_immediate_cb(0, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
 	  }
-      else {																			// Remote host asynchronous measurement
-		if (first_to_last_to_shed[i].measure)
-		  queueShellyCall("HTTP.GET", {url: "http://" + first_to_last_to_shed[i].addr + "/rpc/Shelly.GetStatus?switch:" + i},
-		    get_current_immediate_cb, {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
-		else
-		  get_current_immediate_cb(0, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params}); 
+    else {																			// Remote host asynchronous measurement
+		  if (first_to_last_to_shed[i].measure)
+		    queueShellyCall("HTTP.GET", {url: "http://" + first_to_last_to_shed[i].addr + "/rpc/Shelly.GetStatus?switch:" + i},
+		      get_current_immediate_cb, {idx: i, sessionId: measurement_session_id, cb: cb, params: params});
+		  else
+		    get_current_immediate_cb(0, 0, "", {idx: i, sessionId: measurement_session_id, cb: cb, params: params}); 
 	  }
     }
   }
@@ -610,29 +608,29 @@ function get_current(cb, params) {
 
 function get_current_immediate_cb(chanel_current, error, error_msg, params) {
   if ((def(error) && error) || !def(chanel_current)) {
-	measurement_ongoing = false;
-	log(LOG_ERROR, "Current measurement failed for idx: " + params.idx);
-	measurement_fail_cnt++;
-	return;
+	  measurement_ongoing = false;
+	  log(LOG_ERROR, "Current measurement failed for idx: " + params.idx);
+	  measurement_fail_cnt++;
+	  return;
   }
   if (params.sessionId !== measurement_session_id) {
     log(LOG_WARN, "mismatching session ID: " + params.sessionId);
-	return;
+	  return;
   }
   if (!measurement_ongoing) {
-	return;
+	  return;
   }
   remaining_measurements--;
   current_vector[first_to_last_to_shed.length-1-params.idx] = chanel_current;
   if (switch_state[first_to_last_to_shed.length-1-params.idx])
-	last_known_current[first_to_last_to_shed.length-1-params.idx] = chanel_current;
+	  last_known_current[first_to_last_to_shed.length-1-params.idx] = chanel_current;
   if (!remaining_measurements) {
-	Timer.clear(measurement_timer);
-	measurement_ongoing = false;
-	let sum = 0;
-	for(let i=0; i<current_vector.length; i++) 
-	  sum += current_vector[i];
-	params.cb(sum, 0, "", params);
+	  Timer.clear(measurement_timer);
+	  measurement_ongoing = false;
+	  let sum = 0;
+	  for(let i=0; i<current_vector.length; i++) 
+	    sum += current_vector[i];
+	  params.cb(sum, 0, "", params);
   }
 }
 
@@ -649,26 +647,26 @@ function turn(idx, dir) {
   let on = dir === "on" ? true : false;
   switch_state[first_to_last_to_shed[idx].id] = on;
   if (simulation && !turn_relay_on_simulation)
-	return;
+	  return;
   if (def(first_to_last_to_shed[idx].on_url) && def(first_to_last_to_shed[idx].off_url)) {
     if (def(first_to_last_to_shed[idx].on_url) && dir === "on")
       queueShellyCall("HTTP.GET", { url: first_to_last_to_shed[idx].on_url }, turnCallBack, {idx});
     if (def(first_to_last_to_shed[idx].off_url) && dir === "off")
       queueShellyCall("HTTP.GET", { url: first_to_last_to_shed[idx].off_url }, turnCallBack, {idx});
-	return;
+	  return;
   }
   if (first_to_last_to_shed[idx].addr === "localhost") {
-	queueShellyCall("Switch.Set", {on:on, id:first_to_last_to_shed[idx].id}, turnCallBack, idx);
-	return;
+	  queueShellyCall("Switch.Set", {on:on, id:first_to_last_to_shed[idx].id}, turnCallBack, idx);
+	  return;
   }
   if (def(first_to_last_to_shed[idx].gen)) {
     let cmd;
     if (first_to_last_to_shed[idx].gen === 1) 
-	  cmd = first_to_last_to_shed[idx].type + "/" + first_to_last_to_shed[idx].id.toString() + "?turn=" + dir;
+	    cmd = first_to_last_to_shed[idx].type + "/" + first_to_last_to_shed[idx].id.toString() + "?turn=" + dir;
     else
-	  cmd = "rpc/" + first_to_last_to_shed[idx].type + ".Set?id=" + first_to_last_to_shed[idx].id.toString() + "&on=" + on;
+	    cmd = "rpc/" + first_to_last_to_shed[idx].type + ".Set?id=" + first_to_last_to_shed[idx].id.toString() + "&on=" + on;
     queueShellyCall("HTTP.GET", { url: "http://" + first_to_last_to_shed[idx].addr + "/" + cmd }, turnCallBack, {idx});
-	return;
+	  return;
   }
   log(LOG_ERROR, "Failed to operate relay - first_to_last_to_shed id: " + idx + " - configuration error");
 }
@@ -689,14 +687,13 @@ function updateSettingsFromKVS() {
     function (result, error_code, error_message) {
       for (let KVS in result.items) {
         switch (result.items[KVS].key) {
-
           case "hostname_setting":
             if (hostname_setting !== result.items[KVS].value) {
               hostname_setting = result.items[KVS].value;
               log(LOG_INFO, "Hostname is set to: " + result.items[KVS].value);
             }
             break;
-
+            
           case "fuse_rating_setting":
             if (fuse_rating_setting !== result.items[KVS].value) {
               fuse_rating_setting = result.items[KVS].value;
@@ -770,7 +767,7 @@ function updateSettingsFromKVS() {
                   if(def(res) && def(res.value) && res.value !== JSON.stringify(first_to_last_to_shed[i]))
                     first_to_last_to_shed[i] = JSON.parse(res.value);
                 },
-				i
+				        i
               );
             }
             break;
@@ -785,13 +782,12 @@ function updateSettingsFromKVS() {
 }
 
 
-//FIX - refactoring update and delete KVS handling to be more uniform
 /* function createKV(k, v, over_write);
  * Creates Key-value store entries from the script defined setting defaults, if "over_write" is 
  * set to true it will over-write an already existing key-value, otherwise not */
 function createKV(k, v, over_write) {
   queueShellyCall("KVS.Get", {key:k}, 
-    function (result, error_code, error_message) {
+    function (result, error_code, error_message, over_write) {
        if(!def(result) || over_write) {
          queueShellyCall("KVS.Set", {key:k, value:v}, 
            function(result, error_code, error_message) {
@@ -799,7 +795,8 @@ function createKV(k, v, over_write) {
            }
          );
        }
-    }
+    },
+    over_write
   );
 }
 
@@ -810,13 +807,13 @@ function deleteKV(keys, cb, params) {
   for(let i=0; i<keys.length; i++) {
     delete_KVS_cnt++;
     queueShellyCall("KVS.Delete", {key:keys[i]},
-                    function(result, error_code, error_message, params) {
-                      delete_KVS_cnt--;
-                      if(!delete_KVS_cnt && def(params.cb))
-                        params.cb(params.params);
-                    },
-                    {cb:cb, params:params}
-                    );
+      function(result, error_code, error_message, params) {
+        delete_KVS_cnt--;
+        if(!delete_KVS_cnt && def(params.cb))
+          params.cb(params.params);
+      },
+      {cb:cb, params:params}
+    );
   }
 }
 
@@ -831,9 +828,8 @@ function deleteAllKVS(cb, params) {
                       "log_level_setting"];
   Shelly.call("KVS.Get", {key: "shed_chan_ptr"},
     function(res, err, err_str, params) {
-
       let all_delete_items = params.delete_items;
-      if (def(res) && def(res.value)){
+      if (def(res) && def(res.value)) {
         all_delete_items.push("shed_chan_ptr");
         let value = JSON.parse(res.value);
         for (let i=0; i<value.length; i++)
@@ -872,9 +868,9 @@ function nextIdxToLoad(idx_next_to_toggle_off) {
   while (idx_next_to_toggle_off > 0) {
     idx_next_to_toggle_off--;
     if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
-	  return idx_next_to_toggle_off;
+	    return idx_next_to_toggle_off;
       break;
-	}
+	  }
   }
   return null;
 }
@@ -885,7 +881,7 @@ function nextIdxToShed(idx_next_to_toggle_off) {
     if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
       return idx_next_to_toggle_off;
       break;
-	}
+	  }
   }
   return null;
 } 
@@ -897,11 +893,11 @@ function scanCurrent() {
   if (!(current_scan_time % 10)) 
     checkKVS();
   if (!last_overrun)
-	consecutive_overrun_cnt = 0;
+	  consecutive_overrun_cnt = 0;
   if (running) {
     last_overrun = true;
     overrun_cnt++;
-	consecutive_overrun_cnt++;
+	  consecutive_overrun_cnt++;
     log(LOG_WARN, "Overrun - Overrun count is: " + overrun_cnt + " and consecutive overrun count is: " + consecutive_overrun_cnt);
     return;
   }
@@ -909,10 +905,10 @@ function scanCurrent() {
   if (get_current(processCurrentMeasurements)) {
     last_overrun = true;
     overrun_cnt++;
-	consecutive_overrun_cnt++;
+	  consecutive_overrun_cnt++;
     log(LOG_ERROR, "Measure failure - did not expect this - Overrun count is: " + overrun_cnt + " and consecutive overrun count is: " + consecutive_overrun_cnt);
-	running = false;
-	return;
+	  running = false;
+	  return;
   }
 }
 
@@ -939,7 +935,7 @@ function processCurrentMeasurements(current, err_code, err_msg) {
            last_known_current[first_to_last_to_shed.length-1-nextIdxToLoad(idx_next_to_toggle_off)]  <= current_restriction_setting *
            (1-current_restriction_hysteresis_setting))) {
     direction = "loading";
-	time_to_test_loading = time_to_test_loading_setting;
+	  time_to_test_loading = time_to_test_loading_setting;
   }
   else {
     direction = "coasting";
@@ -953,39 +949,39 @@ function processCurrentMeasurements(current, err_code, err_msg) {
     }
     else if (time_to_test_loading !== -1)
       time_to_test_loading -= scan_interval * (consecutive_overrun_cnt + 1);
-  }  
+  }
   if (direction === "loading") {
     coasting_report_cnt = 0;
-	let idx_next_to_toggle_off_tmp = nextIdxToLoad(idx_next_to_toggle_off);
+	  let idx_next_to_toggle_off_tmp = nextIdxToLoad(idx_next_to_toggle_off);
     if (idx_next_to_toggle_off_tmp !== null) {
-	  idx_next_to_toggle_off = idx_next_to_toggle_off_tmp;
+	    idx_next_to_toggle_off = idx_next_to_toggle_off_tmp;
       if (overload_webhook_uri_setting !== "" && hostname_setting !== "") {
         queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                         {hostname: hostname_setting, state: "Loading",
-	   				     fuseRating: fuse_rating_setting,
-						 fuseCharacteristics: fuse_char_setting,
-						 fuseCurrent: total,
-						 currentRestriction: (current_restriction_setting === -1 ? false:true),
-						 noOfSheddedChanells: idx_next_to_toggle_off,
-						 disconnected: null,
-						 reconnected: {idx: idx_next_to_toggle_off, 
-									   deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
-									   deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
-									   estimatedReconnectCurrent:last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]},
-			  			 nextToDisconnect: (idx_next_to_toggle_off !== first_to_last_to_shed.length ? {idx: nextIdxToShed(idx_next_to_toggle_off), 
-									        deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
-										    deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id} : null ),
-						 nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== undefined ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
+	   				             fuseRating: fuse_rating_setting,
+						             fuseCharacteristics: fuse_char_setting,
+						             fuseCurrent: total,
+						             currentRestriction: (current_restriction_setting === -1 ? false:true),
+						             noOfSheddedChanells: idx_next_to_toggle_off,
+						             disconnected: null,
+						             reconnected: {idx: idx_next_to_toggle_off, 
+									       deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+									       deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
+									       estimatedReconnectCurrent:last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]},
+			  			           nextToDisconnect: (idx_next_to_toggle_off !== first_to_last_to_shed.length ? {idx: nextIdxToShed(idx_next_to_toggle_off), 
+                          deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+										      deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id} : null ),
+						             nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== undefined ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
 						 		    	   deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
-										   deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
-						 function(result, error_code, error_message, params) {
-			  			   if (def(error_code) && error_code)
+										     deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
+	        function(result, error_code, error_message, params) {
+			  	  if (def(error_code) && error_code)
 							 log(LOG_WARN, "Failed to send loading WEB-hook to endpoint: " + params.uri + " - " + error_message);
-			  			     return;
-            			 },
-		   				 {uri: overload_webhook_uri_setting}
-		   				 );
-	  }
+			  		return;
+          },
+		   		{uri: overload_webhook_uri_setting}
+		   	);
+	    }
       log(LOG_INFO, "Loading global idx channel: " + idx_next_to_toggle_off + " with local relay id: " + first_to_last_to_shed[idx_next_to_toggle_off].id + ", current before loading is: " +
                      total +" A, expected current after loading is: " + 
                      (total + last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]) + " A");
@@ -1001,30 +997,30 @@ function processCurrentMeasurements(current, err_code, err_msg) {
         if (overload_webhook_uri_setting !== "" && hostname_setting !== "") {
           queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                           {hostname: hostname_setting, state: "Shedding",
-	   		  			   fuseRating: fuse_rating_setting,
-						   fuseCharacteristics: fuse_char_setting,
-						   fuseCurrent: total,
-						   currentRestriction: (current_restriction_setting === -1 ? false:true),
-						   noOfSheddedChanells: idx_next_to_toggle_off,
-						   disconnected: (idx_next_to_toggle_off<first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off, 
-									      deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
-										  deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
-										  estimatedDisconnectedCurrent:last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]} : null ),
-						   reconnected: null,
-			  			   nextToDisconnect: (idx_next_to_toggle_off !== first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off, 
+	   		  			           fuseRating: fuse_rating_setting,
+						               fuseCharacteristics: fuse_char_setting,
+						               fuseCurrent: total,
+						               currentRestriction: (current_restriction_setting === -1 ? false:true),
+						               noOfSheddedChanells: idx_next_to_toggle_off,
+						               disconnected: (idx_next_to_toggle_off<first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off, 
 									          deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
-										      deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id} : null ),
-						   nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== null ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
-						 		    	     deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
-										     deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
-						   function(result, error_code, error_message, params) {
-			  			     if (def(error_code) && error_code)
+										        deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
+										        estimatedDisconnectedCurrent:last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]} : null ),
+						               reconnected: null,
+			  			             nextToDisconnect: (idx_next_to_toggle_off !== first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off, 
+									          deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+										        deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id} : null ),
+						               nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== null ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
+						 		    	      deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
+										        deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
+			      function(result, error_code, error_message, params) {
+			  		  if (def(error_code) && error_code)
 							   log(LOG_WARN, "Failed to send coasting WEB-hook to endpoint: " + params.uri + " - " + error_message);
-			  			     return;
-            			   },
-		   				   {uri: overload_webhook_uri_setting}
-		   				   );
-	    }
+			  			return;
+            },
+		   			{uri: overload_webhook_uri_setting}
+		   		);
+	      }
         log(LOG_INFO, "Shedding global idx channel: " + idx_next_to_toggle_off +
                       " with local relay id: " + first_to_last_to_shed[idx_next_to_toggle_off].id +
                       ", current before shedding is: " +
@@ -1035,14 +1031,14 @@ function processCurrentMeasurements(current, err_code, err_msg) {
       }
       else
         log(LOG_WARN, "No more channels to shed");
-	  let idx_next_to_toggle_off_tmp = nextIdxToShed(idx_next_to_toggle_off);
-	  if (idx_next_to_toggle_off_tmp !== null)
-		idx_next_to_toggle_off = idx_next_to_toggle_off_tmp;
-	  else
-		idx_next_to_toggle_off = first_to_last_to_shed.length;
+	    let idx_next_to_toggle_off_tmp = nextIdxToShed(idx_next_to_toggle_off);
+	    if (idx_next_to_toggle_off_tmp !== null)
+		    idx_next_to_toggle_off = idx_next_to_toggle_off_tmp;
+	    else
+		    idx_next_to_toggle_off = first_to_last_to_shed.length;
     }
-	else
-	  log(LOG_WARN, "No more channels to shed");
+	  else
+	    log(LOG_WARN, "No more channels to shed");
   }
   if (direction === "coasting") {
     if (coasting_report_cnt * scan_interval * (consecutive_overrun_cnt + 1) >= 60)
@@ -1050,30 +1046,30 @@ function processCurrentMeasurements(current, err_code, err_msg) {
     else
       coasting_report_cnt++;
     if (!coasting_report_cnt) {
-	  if (overload_webhook_uri_setting !== "" && hostname_setting !== "") {
+	    if (overload_webhook_uri_setting !== "" && hostname_setting !== "") {
         queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
                         {hostname: hostname_setting, state: "Coasting",
-	   					 fuseRating: fuse_rating_setting,
-						 fuseCharacteristics: fuse_char_setting,
-						 fuseCurrent: total,
-						 currentRestriction: (current_restriction_setting === -1 ? false:true),
-						 noOfSheddedChanells: idx_next_to_toggle_off,
-						 disconnected: null,
-						 reconnected: null,
-			  			 nextToDisconnect: (nextIdxToShed(idx_next_to_toggle_off-1) !== null ? {idx: nextIdxToShed(idx_next_to_toggle_off), 
+	   					           fuseRating: fuse_rating_setting,
+						             fuseCharacteristics: fuse_char_setting,
+						             fuseCurrent: total,
+						             currentRestriction: (current_restriction_setting === -1 ? false:true),
+						             noOfSheddedChanells: idx_next_to_toggle_off,
+						             disconnected: null,
+						             reconnected: null,
+			  			           nextToDisconnect: (nextIdxToShed(idx_next_to_toggle_off-1) !== null ? {idx: nextIdxToShed(idx_next_to_toggle_off), 
 									        deviceAddr: first_to_last_to_shed[nextIdxToShed(idx_next_to_toggle_off)].addr,
-										    deviceRelayId: first_to_last_to_shed[nextIdxToShed(idx_next_to_toggle_off)].id} : null ),
-						 nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== null ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
-						 		    	   deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
-										   deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
-						 function(result, error_code, error_message, params) {
-			  			   if (def(error_code) && error_code)
-							 log(LOG_WARN, "Failed to send coasting WEB-hook to endpoint: " + params.uri + " - " + error_message);
-			  			   return;
-            			 },
-		   				 {uri: overload_webhook_uri_setting}
-		   				 );
-	  }
+										      deviceRelayId: first_to_last_to_shed[nextIdxToShed(idx_next_to_toggle_off)].id} : null ),
+						             nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== null ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
+						 		    	    deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
+										      deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
+	        function(result, error_code, error_message, params) {
+			  	  if (def(error_code) && error_code)
+						  log(LOG_WARN, "Failed to send coasting WEB-hook to endpoint: " + params.uri + " - " + error_message);
+			  		return;
+          },
+		   		{uri: overload_webhook_uri_setting}
+		   	);
+	    }
       log(LOG_INFO, "Coasting - Next global idx channel to shed is: " +
                     nextIdxToShed(idx_next_to_toggle_off-1) +
                     " , Next global idx channel to load is: " +
