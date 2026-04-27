@@ -7,11 +7,21 @@
  * After certain number of failures the script resets the shelly
  **********************************************************************************************************/
 
+/********************************************    Constants ***********************************************/
+const LOG_PREFIX = "watchDog"
+const LOG_VERBOSE = 0;
+const LOG_INFO = 1;
+const LOG_WARN = 2;
+const LOG_ERROR = 3;
+const LOG_CRITICAL = 4;
+/*********************************************************************************************************/
+
 let CONFIG = {
   scripts: {"shedder":null},
   httpTimeout: 10,
   check_time: 10,
-  consecutive_errs: 3
+  consecutive_errs: 3,
+  log_level_setting: LOG_INFO
 };
 let errors = {};
 let restarts = {};
@@ -19,6 +29,37 @@ let device_errors = 0;
 let last_kvs_rev = -1;
 let script_start_time = 0;
 let delete_KVS_cnt = 0;
+let script_id_to_name = {};
+
+
+/* function def(o);
+ * Check if defined */
+function def(o) {
+  return typeof o !== "undefined";
+}
+
+
+/* function log(severity, log_entry);
+ * Log entries to console according to "log_level_setting" which can be any of
+ * LOG_VERBOSE, LOG_INFO, LOG_WARN, LOG_ERROR and LOG_CRITICAL */
+function log(severity, log_entry) {
+  if (severity >= CONFIG.log_level_setting)
+    print(LOG_PREFIX + ": " + log_entry);
+}
+
+
+/* function convertMetricsToNames()
+ * Converts script metrics from ID-based keys to name-based keys */
+function convertMetricsToNames(errorsByID, restartsByID) {
+  let errorsByName = {};
+  let restartsByName = {};
+  for (let scriptName in CONFIG.scripts) {
+    let scriptID = CONFIG.scripts[scriptName];
+    errorsByName[scriptName] = errorsByID[scriptID] || 0;
+    restartsByName[scriptName] = restartsByID[scriptID] || 0;
+  }
+  return { scriptErrors: errorsByName, scriptRestarts: restartsByName };
+}
 
 
 /* function parseQuery()
@@ -45,8 +86,9 @@ function watchdogEndPoint(req, res) {
   let key_values = parseQuery(req.query);
   switch(Object.keys(key_values)[0]) {
     case "watchDogMetrics":
+      let metrics = convertMetricsToNames(errors, restarts);
       res.body = JSON.stringify({watchDogMetrics:{upTime:Math.floor(Date.now()/1000)-script_start_time,
-                                deviceErrors:device_errors, scriptErrors: errors, scriptRestarts: restarts}});
+                                deviceErrors:device_errors, scriptErrors: metrics.scriptErrors, scriptRestarts: metrics.scriptRestarts}});
       res.code = 200;     
       break;
       
@@ -100,7 +142,7 @@ function createKV(k, v, over_write) {
   Shelly.call("KVS.Get", {key:k}, 
     function (result, error_code, error_message, over_write) {
        if(!def(result) || over_write) {
-         queueShellyCall("KVS.Set", {key:k, value:v}, 
+         Shelly.call("KVS.Set", {key:k, value:v}, 
            function(result, error_code, error_message) {
              return;  
            }
@@ -135,7 +177,7 @@ function deleteKV(keys, cb, params) {
 function updateKvs() {
   log(LOG_INFO, "Creating KVS entries and setting them to default if not exist, " +
       "if exist - updating script settings to default");
-  createKV("watchdog_config", CONFIG, false);
+  createKV("watchdog_config", JSON.stringify(CONFIG), false);
 }
 
 /* function chekKVS
@@ -175,10 +217,10 @@ function checkEndpoints() {
               log(LOG_WARN, "script " + result.scripts[i].name + " is not running");
               errors[CONFIG.scripts[result.scripts[i].name]]++;
               if(errors[CONFIG.scripts[result.scripts[i].name]]>=CONFIG.consecutive_errs) {
-                log("restarting script " + result.scripts[i].name);
+                log(LOG_WARN, "restarting script: " + result.scripts[i].name);
                 Shelly.call("Script.Start", {id:CONFIG.scripts[result.scripts[i].name]});
                 errors[CONFIG.scripts[result.scripts[i].name]] = 0;
-                restarts[CONFIG.scripts[result.scripts[i].name]] = 0;
+                restarts[CONFIG.scripts[result.scripts[i].name]]++;
               }
             }
             else {
@@ -194,7 +236,7 @@ function checkEndpoints() {
 /*                                              main/init                                                */
 /*********************************************************************************************************/
 script_start_time = Math.floor(Date.now() / 1000)
-log(LOG_INFO, "Start watchdog timers");
+log(LOG_INFO, "Starting watchdog");
 Shelly.call("Script.List", null, 
           function (result, error_code, error_message) {
             for(let i=0; i<result.scripts.length; i++) {
