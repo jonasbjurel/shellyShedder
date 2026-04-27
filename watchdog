@@ -30,6 +30,8 @@ let last_kvs_rev = -1;
 let script_start_time = 0;
 let delete_KVS_cnt = 0;
 let script_id_to_name = {};
+let pingTimer = null;
+let kvs_initialized = false;
 
 
 /* function def(o);
@@ -118,6 +120,14 @@ function shellyEventCb(event) {
 function updateSettingsFromKVS() {
   Shelly.call("KVS.GetMany", {},
     function (result, error_code, error_message) {
+      if (error_code !== 0) {
+        log(LOG_ERROR, "KVS.GetMany failed: " + error_message);
+        return;
+      }
+      if (!def(result) || !def(result.items)) {
+        log(LOG_ERROR, "Invalid KVS.GetMany response");
+        return;
+      }
       for (let KVS in result.items) {
         switch (result.items[KVS].key) {
           case "watchdog_config":
@@ -144,6 +154,9 @@ function createKV(k, v, over_write) {
        if(!def(result) || over_write) {
          Shelly.call("KVS.Set", {key:k, value:v}, 
            function(result, error_code, error_message) {
+             if (error_code !== 0) {
+               log(LOG_ERROR, "KVS.Set failed for key " + k + ": " + error_message);
+             }
              return;  
            }
          );
@@ -163,6 +176,9 @@ function deleteKV(keys, cb, params) {
     Shelly.call("KVS.Delete", {key:keys[i]},
       function(result, error_code, error_message, params) {
         delete_KVS_cnt--;
+        if (error_code !== 0) {
+          log(LOG_WARN, "KVS.Delete failed for key: " + error_message);
+        }
         if(!delete_KVS_cnt && def(params.cb))
           params.cb(params.params);
       },
@@ -178,13 +194,18 @@ function updateKvs() {
   log(LOG_INFO, "Creating KVS entries and setting them to default if not exist, " +
       "if exist - updating script settings to default");
   createKV("watchdog_config", JSON.stringify(CONFIG), false);
+  kvs_initialized = true;
 }
 
-/* function chekKVS
+/* function checkKVS()
  * Checks if KVS has changed, and if so emmits a KVS event */
 function checkKVS() {
   Shelly.call("KVS.List", { match: "*"}, 
     function(result, error_code, error_message) {
+      if (error_code !== 0) {
+        log(LOG_WARN, "KVS.List failed: " + error_message);
+        return;
+      }
       if(def(result) && result.rev != last_kvs_rev) {
 	    last_kvs_rev = result.rev;
 	    Shelly.emitEvent("KVS", {});
@@ -200,6 +221,16 @@ function checkEndpoints() {
     Shelly.call(
       "Script.List", null,
       function (result, error_code, error_message) {
+        if (error_code !== 0) {
+          log(LOG_ERROR, "Script.List failed: " + error_message);
+          device_errors++;
+          if(device_errors>=CONFIG.consecutive_errs) {
+            log(LOG_ERROR, "Rebooting device");
+            Shelly.call("Shelly.Reboot");
+            device_errors = 0;
+          }
+          return;
+        }
         if(result == undefined) {
           log(LOG_ERROR, "Device not responding");
           device_errors++;
@@ -215,21 +246,39 @@ function checkEndpoints() {
           if(result.scripts[i].name in CONFIG.scripts) {
             if(!result.scripts[i].running) {
               log(LOG_WARN, "script " + result.scripts[i].name + " is not running");
-              errors[CONFIG.scripts[result.scripts[i].name]]++;
-              if(errors[CONFIG.scripts[result.scripts[i].name]]>=CONFIG.consecutive_errs) {
+              let scriptID = CONFIG.scripts[result.scripts[i].name];
+              errors[scriptID] = (errors[scriptID] || 0) + 1;
+              if(errors[scriptID]>=CONFIG.consecutive_errs) {
                 log(LOG_WARN, "restarting script: " + result.scripts[i].name);
-                Shelly.call("Script.Start", {id:CONFIG.scripts[result.scripts[i].name]});
-                errors[CONFIG.scripts[result.scripts[i].name]] = 0;
-                restarts[CONFIG.scripts[result.scripts[i].name]]++;
+                Shelly.call("Script.Start", {id:scriptID}, 
+                  function(result, error_code, error_message) {
+                    if (error_code !== 0) {
+                      log(LOG_ERROR, "Script.Start failed: " + error_message);
+                    }
+                  }
+                );
+                errors[scriptID] = 0;
+                restarts[scriptID] = (restarts[scriptID] || 0) + 1;
               }
             }
             else {
-              errors[CONFIG.scripts[result.scripts[i].name]] = 0;
+              let scriptID = CONFIG.scripts[result.scripts[i].name];
+              errors[scriptID] = 0;
             }
           }
         }
       },
       );
+}
+
+/* function stopWatchdog()
+ * Gracefully stops the watchdog script */
+function stopWatchdog() {
+  if (pingTimer !== null) {
+    Timer.clear(pingTimer);
+    pingTimer = null;
+  }
+  log(LOG_INFO, "Watchdog stopped");
 }
 
 /*********************************************************************************************************/
@@ -239,6 +288,14 @@ script_start_time = Math.floor(Date.now() / 1000)
 log(LOG_INFO, "Starting watchdog");
 Shelly.call("Script.List", null, 
           function (result, error_code, error_message) {
+            if (error_code !== 0) {
+              log(LOG_ERROR, "Initial Script.List failed: " + error_message);
+              return;
+            }
+            if (!def(result) || !def(result.scripts)) {
+              log(LOG_ERROR, "Invalid Script.List response");
+              return;
+            }
             for(let i=0; i<result.scripts.length; i++) {
               if(result.scripts[i].name in CONFIG.scripts) {
                 CONFIG.scripts[result.scripts[i].name] = result.scripts[i].id;
@@ -251,4 +308,4 @@ Shelly.call("Script.List", null,
 Shelly.addEventHandler(shellyEventCb);
 updateKvs();
 HTTPServer.registerEndpoint("watchdog", watchdogEndPoint);
-pingTimer = Timer.set(CONFIG.check_time* 1000, true, checkEndpoints);
+pingTimer = Timer.set(CONFIG.check_time * 1000, true, checkEndpoints);
