@@ -173,33 +173,6 @@ Sets the URI endpoint for the shedder status event Webhooks.
 *http://<"ShellyURL">/rpc/KVS.Set?key="log_level_setting"&value=<"LOG_CRITICAL" | "LOG_ERROR" | "LOG_WARN" | "LOG_INFO" | "LOG_VERBOSE">*<br>
 Sets log level.
 
-## Watchdog script configuration (persistant)
-This general purpose watchdog script monitors the health and status of managed scripts and the device itself.
-The watchdog script restarts scripts that have stopped running and reboots the device if it becomes unresponsive.
-The watchdog script's behaviour depends on script configuration settings with default values as defined in the
-script under "default settings...". The default script configurations are persistantly written to the
-shelly KVS (Key Value Store) at the first startup of the script, or after a factory reset of the script/
-or the device. The default settings can be changed through the provided Shelly KVS HTTP APIs,
-or alternatively setting the KVS store from the shelly local- or cloud- web-page.<br>
-CAUTION: The shelly KVS store is using a storage with limited number of writes (~100 K), limit the number
-of programatically initiated re-configurations to ensure adequate life-time of the device.
-
-Following watchdog script setting/HTTP APIs are supported:
-
-**Watchdog configuration:**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="watchdog_config"&value=<watchdog_config_json>*<br>
-Sets the watchdog script configuration as a JSON object. The configuration object contains the following parameters:<br>
-{scripts: {<script_name>: null, ...}, httpTimeout: <timeout_seconds>, check_time: <check_interval_seconds>, consecutive_errs: <error_threshold>, log_level_setting: <log_level>}
-
-* **scripts**: A map of script names to monitor (e.g., {"shedder": null}). Script IDs are automatically populated at startup.
-* **httpTimeout**: HTTP request timeout in seconds for monitoring operations.
-* **check_time**: Interval in seconds between health checks of managed scripts and device responsiveness.
-* **consecutive_errs**: Number of consecutive errors before restarting a script or rebooting the device.
-* **log_level_setting**: Log level for watchdog output (0=LOG_VERBOSE, 1=LOG_INFO, 2=LOG_WARN, 3=LOG_ERROR, 4=LOG_CRITICAL).
-
-**Example configuration:**<br>
-*http://<"ShellyURL">/rpc/KVS.Set?key="watchdog_config"&value={"scripts":{"shedder":null},"httpTimeout":10,"check_time":10,"consecutive_errs":3,"log_level_setting":1}*<br>
-
 ## Script interaction APIs (non persistant)
 This shedder script provides non persistant run-time HTTP APIs that enables interaction with the shedder script and that retreives shedder information as well as asynchronous HTTP Webhook call-backs regarding shedder status changes.
 
@@ -250,19 +223,6 @@ Sets the simulated current for each of the shedder channels.
 Response body: A JSON object<br>
 {simulatedCurrent:[ch0_curr, ch1_curr, ch2_curr, ch3_curr,...]}
 
-### Watchdog script interaction APIs (non persistant)
-
-**Get watchdog metrics:**<br>
-*http://"ShellyURL"/script/\<scriptId>/watchdog?watchDogMetrics*<br>
-Retrieves the watchdog health metrics including uptime, error counts, and script restart counts.
-
-Response body: A JSON object<br>
-{watchDogMetrics: {upTime: <seconds>, deviceErrors: <count>, scriptErrors: {<script_name>: <count>, ...}, scriptRestarts: {<script_name>: <count>, ...}}}
-
-* **upTime** - Watchdog script uptime in seconds since startup.
-* **deviceErrors** - Number of accumulated device errors (consecutive unresponsiveness events).
-* **scriptErrors** - Map of script names to their accumulated error counts.
-* **scriptRestarts** - Map of script names to their total restart counts.
 
 ### Requesting status through HTTP APIs
 
@@ -408,12 +368,53 @@ to normal priority principles. To avoid oscilations a
 "current_restriction_hysteresis_setting" hysteresis factor is applied before the
 re-loading of channels may happen. **A value of 0.1 to 0.2 is recommended**
 
-## Watchdog key considerations:
+## Watchdog script
+This general purpose watchdog script monitors the health and status of managed scripts and the device itself.
+The watchdog script restarts scripts that have stopped running and reboots the device if it becomes unresponsive.
+The watchdog script's behaviour depends on script configuration settings with default values as defined in the
+script under "default settings...". The default script configurations are persistantly written to the
+shelly KVS (Key Value Store) at the first startup of the script, or after a factory reset of the script/
+or the device. The default settings can be changed through the provided Shelly KVS HTTP APIs,
+or alternatively setting the KVS store from the shelly local- or cloud- web-page.<br>
+CAUTION: The shelly KVS store is using a storage with limited number of writes (~100 K), limit the number
+of programatically initiated re-configurations to ensure adequate life-time of the device.
+
+### Watchdog script configuration (persistant)
+Following watchdog script setting/HTTP APIs are supported:
+
+**Watchdog configuration:**<br>
+*http://<"ShellyURL">/rpc/KVS.Set?key="watchdog_config"&value=<watchdog_config_json>*<br>
+Sets the watchdog script configuration as a JSON object. The configuration object contains the following parameters:<br>
+{scripts: {<script_name>: null, ...}, httpTimeout: <timeout_seconds>, check_time: <check_interval_seconds>, consecutive_errs: <error_threshold>, log_level_setting: <log_level>}
+
+* **scripts**: A map of script names to monitor (e.g., {"shedder": null}). Script IDs are automatically populated at startup.
+* **httpTimeout**: HTTP request timeout in seconds for monitoring operations.
+* **check_time**: Interval in seconds between health checks of managed scripts and device responsiveness.
+* **consecutive_errs**: Number of consecutive errors before restarting a script or rebooting the device.
+* **log_level_setting**: Log level for watchdog output (0=LOG_VERBOSE, 1=LOG_INFO, 2=LOG_WARN, 3=LOG_ERROR, 4=LOG_CRITICAL).
+
+**Example configuration:**<br>
+*http://<"ShellyURL">/rpc/KVS.Set?key="watchdog_config"&value={"scripts":{"shedder":null},"httpTimeout":10,"check_time":10,"consecutive_errs":3,"log_level_setting":1}*<br>
+
+### Watchdog script interaction APIs (non persistant)
+**Get watchdog metrics:**<br>
+*http://"ShellyURL"/script/\<scriptId>/watchdog?watchDogMetrics*<br>
+Retrieves the watchdog health metrics including uptime, error counts, and script restart counts.
+
+Response body: A JSON object<br>
+{watchDogMetrics: {upTime: <seconds>, deviceErrors: <count>, scriptErrors: {<script_name>: <count>, ...}, scriptRestarts: {<script_name>: <count>, ...}}}
+
+* **upTime** - Watchdog script uptime in seconds since startup.
+* **deviceErrors** - Number of accumulated consecutive device errors (consecutive unresponsiveness events).
+* **scriptErrors** - Map of script names to their accumulated consecutive error counts.
+* **scriptRestarts** - Map of script names to their total restart counts.
+
+### Watchdog key considerations:
 1. The watchdog script monitors configured scripts at the interval defined by "check_time". A typical value is 10 seconds.
 2. Set "consecutive_errs" to define the threshold of consecutive errors before automatic restart or reboot. **A value of 3 is recommended**.
 3. If a configured script stops running, the watchdog will restart it after "consecutive_errs" failures have been detected.
 4. If the device becomes unresponsive, the watchdog will reboot the device after "consecutive_errs" failures have been detected.
-5. The watchdog logs all major events and decisions. Adjust "log_level_setting" to control verbosity (0=VERBOSE through 4=CRITICAL). **A value of 1 (LOG_INFO) is recommended for normal operation**.
+5. The watchdog logs all events and decisions. Adjust "log_level_setting" to control verbosity (0=VERBOSE through 4=CRITICAL). **A value of 3 (LOG_WARN) is recommended for normal operation**.
 
 ## Contious integration
 The shedder script comes with an extensive automated verification script - "shedder.js" that aims to verify all the aspects of the shedder script in simulated mode. The real current measurement and
