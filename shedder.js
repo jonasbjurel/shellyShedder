@@ -957,23 +957,24 @@ function processCurrentMeasurements(current, err_code, err_msg) {
 	    idx_next_to_toggle_off = idx_next_to_toggle_off_tmp;
       if (overload_webhook_uri_setting !== "" && hostname_setting !== "") {
         queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
-                        {hostname: hostname_setting, state: "Loading",
-	   				             fuseRating: fuse_rating_setting,
-						             fuseCharacteristics: fuse_char_setting,
-						             fuseCurrent: total,
-						             currentRestriction: (current_restriction_setting === -1 ? false:true),
-						             noOfSheddedChanells: idx_next_to_toggle_off,
-						             disconnected: null,
-						             reconnected: {idx: idx_next_to_toggle_off, 
-									       deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
-									       deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
-									       estimatedReconnectCurrent:last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]},
-			  			           nextToDisconnect: (idx_next_to_toggle_off !== first_to_last_to_shed.length ? {idx: nextIdxToShed(idx_next_to_toggle_off), 
-                          deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
-										      deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id} : null ),
-						             nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== undefined ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
-						 		    	   deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
-										     deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
+						{hostname: hostname_setting,
+             state: "Loading",
+						 fuseRating: fuse_rating_setting,
+             fuseCharacteristics: fuse_char_setting,
+             fuseCurrent: total,
+             currentRestriction: (current_restriction_setting === -1 ? false:true),
+             noOfSheddedChanells: idx_next_to_toggle_off,
+             disconnected: null,
+             reconnected: {idx: idx_next_to_toggle_off,
+                           deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+                           deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
+                           estimatedReconnectCurrent:last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]},
+             nextToDisconnect: (idx_next_to_toggle_off !== first_to_last_to_shed.length ? {idx: nextIdxToShed(idx_next_to_toggle_off),
+                           deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+                           deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id} : null ),
+             nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== undefined ? {idx: nextIdxToLoad(idx_next_to_toggle_off),
+                           deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
+                           deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
 	        function(result, error_code, error_message, params) {
 			  	  if (def(error_code) && error_code)
 							 log(LOG_WARN, "Failed to send loading WEB-hook to endpoint: " + params.uri + " - " + error_message);
@@ -995,24 +996,25 @@ function processCurrentMeasurements(current, err_code, err_msg) {
     if (idx_next_to_toggle_off !== first_to_last_to_shed.length) {
       if (first_to_last_to_shed[idx_next_to_toggle_off].shed) {
         if (overload_webhook_uri_setting !== "" && hostname_setting !== "") {
-          queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
-                          {hostname: hostname_setting, state: "Shedding",
-	   		  			           fuseRating: fuse_rating_setting,
-						               fuseCharacteristics: fuse_char_setting,
-						               fuseCurrent: total,
-						               currentRestriction: (current_restriction_setting === -1 ? false:true),
-						               noOfSheddedChanells: idx_next_to_toggle_off,
-						               disconnected: (idx_next_to_toggle_off<first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off, 
-									          deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
-										        deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
-										        estimatedDisconnectedCurrent:last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]} : null ),
-						               reconnected: null,
-			  			             nextToDisconnect: (idx_next_to_toggle_off !== first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off, 
-									          deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
-										        deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id} : null ),
-						               nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== null ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
-						 		    	      deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
-										        deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
+          queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body:
+              {hostname: hostname_setting,
+               state: "Shedding",
+               fuseRating: fuse_rating_setting,
+               fuseCharacteristics: fuse_char_setting,
+               fuseCurrent: total,
+               currentRestriction: (current_restriction_setting === -1 ? false:true),
+               noOfSheddedChanells: idx_next_to_toggle_off,
+               disconnected: (idx_next_to_toggle_off<first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off,
+                              deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+                              deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id,
+                              estimatedDisconnectedCurrent:last_known_current[first_to_last_to_shed.length-1-idx_next_to_toggle_off]} : null ),
+               reconnected: null,
+               nextToDisconnect: (idx_next_to_toggle_off !== first_to_last_to_shed.length ? {idx: idx_next_to_toggle_off,
+                              deviceAddr: first_to_last_to_shed[idx_next_to_toggle_off].addr,
+                              deviceRelayId: first_to_last_to_shed[idx_next_to_toggle_off].id} : null ),
+               nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== null ? {idx: nextIdxToLoad(idx_next_to_toggle_off),
+                              deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
+                              deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
 			      function(result, error_code, error_message, params) {
 			  		  if (def(error_code) && error_code)
 							   log(LOG_WARN, "Failed to send coasting WEB-hook to endpoint: " + params.uri + " - " + error_message);
@@ -1047,21 +1049,22 @@ function processCurrentMeasurements(current, err_code, err_msg) {
       coasting_report_cnt++;
     if (!coasting_report_cnt) {
 	    if (overload_webhook_uri_setting !== "" && hostname_setting !== "") {
-        queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body: 
-                        {hostname: hostname_setting, state: "Coasting",
-	   					           fuseRating: fuse_rating_setting,
-						             fuseCharacteristics: fuse_char_setting,
-						             fuseCurrent: total,
-						             currentRestriction: (current_restriction_setting === -1 ? false:true),
-						             noOfSheddedChanells: idx_next_to_toggle_off,
-						             disconnected: null,
-						             reconnected: null,
-			  			           nextToDisconnect: (nextIdxToShed(idx_next_to_toggle_off-1) !== null ? {idx: nextIdxToShed(idx_next_to_toggle_off), 
-									        deviceAddr: first_to_last_to_shed[nextIdxToShed(idx_next_to_toggle_off)].addr,
-										      deviceRelayId: first_to_last_to_shed[nextIdxToShed(idx_next_to_toggle_off)].id} : null ),
-						             nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== null ? {idx: nextIdxToLoad(idx_next_to_toggle_off), 
-						 		    	    deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
-										      deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
+        queueShellyCall("HTTP.POST", { url: overload_webhook_uri_setting, body:
+            {hostname: hostname_setting,
+             state: "Coasting",
+             fuseRating: fuse_rating_setting,
+             fuseCharacteristics: fuse_char_setting,
+             fuseCurrent: total,
+             currentRestriction: (current_restriction_setting === -1 ? false:true),
+             noOfSheddedChanells: idx_next_to_toggle_off,
+             disconnected: null,
+             reconnected: null,
+             nextToDisconnect: (nextIdxToShed(idx_next_to_toggle_off-1) !== null ? {idx: nextIdxToShed(idx_next_to_toggle_off),
+                                deviceAddr: first_to_last_to_shed[nextIdxToShed(idx_next_to_toggle_off)].addr,
+                                deviceRelayId: first_to_last_to_shed[nextIdxToShed(idx_next_to_toggle_off)].id} : null ),
+             nextToReconnect: (nextIdxToLoad(idx_next_to_toggle_off) !== null ? {idx: nextIdxToLoad(idx_next_to_toggle_off),
+                                deviceAddr: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].addr,
+                                deviceRelayId: first_to_last_to_shed[nextIdxToLoad(idx_next_to_toggle_off)].id} : null}},
 	        function(result, error_code, error_message, params) {
 			  	  if (def(error_code) && error_code)
 						  log(LOG_WARN, "Failed to send coasting WEB-hook to endpoint: " + params.uri + " - " + error_message);
