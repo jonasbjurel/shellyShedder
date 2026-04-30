@@ -339,18 +339,16 @@ function shedderEndPoint(req, res) {
       
     case "getSwitchStatus":
       let switchStatus = new Array(first_to_last_to_shed.length);
-      let prio = 0;
-      for (let i=0; i<first_to_last_to_shed.length; i++)
-        if(first_to_last_to_shed[i].shed) prio++;
+      let non_sheddables = 0;
       for (let i=0; i<switchStatus.length; i++) {
-        switchStatus[i] = first_to_last_to_shed[i];
+        switchStatus[i] = first_to_last_to_shed[first_to_last_to_shed.length-1-i];
         switchStatus[i].switch_state = switch_state[i] === true ? "on" : "off";
-        if(first_to_last_to_shed[i].shed) {
-          switchStatus[i].priority = prio-1;
-          prio--;
-        }
-        else
+        if(switchStatus[i].shed)
+          switchStatus[i].priority = i - non_sheddables ;
+        else {
           switchStatus[i].priority = -1;
+          non_sheddables++;
+        }
       }
       res.body = JSON.stringify({switchStatus: switchStatus});
       res.code = 200;
@@ -645,7 +643,7 @@ function getCurrentTimeout() {
 function turn(idx, dir) {
   log(LOG_INFO, "Turning switch " + first_to_last_to_shed[idx].id + " to " + dir);
   let on = dir === "on" ? true : false;
-  switch_state[first_to_last_to_shed[idx].id] = on;
+  switch_state[first_to_last_to_shed.length-1-idx] = on;
   if (simulation && !turn_relay_on_simulation)
 	  return;
   if (def(first_to_last_to_shed[idx].on_url) && def(first_to_last_to_shed[idx].off_url)) {
@@ -1094,7 +1092,7 @@ function processCurrentMeasurements(current, err_code, err_msg) {
 /*                                              main/init                                                */
 /*********************************************************************************************************/
 script_start_time = Math.floor(Date.now() / 1000)
-for (let i = 0; i < first_to_last_to_shed.length; i++) turn(i, switch_state[i] ? "on" : "off");
+for (let i = 0; i < first_to_last_to_shed.length; i++) turn(i, switch_state[i] ? "on" : "off"); //FIX Only for sheddable channels
 if (!def(idx_next_to_toggle_off=nextIdxToShed(-1))) {
   log(LOG_ERROR, "Configuration error, none of the channels are sheddable");
   return;
