@@ -251,7 +251,9 @@ Response body: A JSON object<br>
                       overRuns:<value>,
                       measurementBusyCnt:<value>,
                       measurementFailCnt:<value>,
-                      measurementTimeoutCnt:<value>}}
+                      measurementTimeoutCnt:<value>,
+                      callQueueLength:<value>,
+                      callQueueLengthHighWaterMark:<value>}}
 
 * **metricsUpdated:** Indicates if this was the first "getPerformanceMetricMeasurements" call after a successful "measurePerformanceMetrics" call, indicating weather the measurements are fresh/latest or stale from a previous measurement.
 * **upTime:** Script uptime in seconds.
@@ -267,7 +269,9 @@ Response body: A JSON object<br>
 * **measurementBusyCnt:** Total amount of accumulated events where the regular current measurements could not be performed because the previous current measurment was still ongoing.
 * **measurementFailCnt:** Total amount of accumulated events where the regular current measurements failed.
 * **measurementFailCnt:** Total amount of accumulated events where the regular current measurements failed to return within the given time boundary.
-
+* **callQueueLength:** Current Shelly.call serilization queue length.
+* **callQueueLengthHighWaterMark:** Longest Shelly.call serilization queue length since last reboot.
+   
 **Get current status:**<br>
 *http://"ShellyURL"/script/\<scriptId>/shedder?getCurrent*<br>
 Retrievs the total measured current and current for each channel.
