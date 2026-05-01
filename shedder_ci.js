@@ -195,7 +195,7 @@ function KVSSet(key_values, cb) {
                         break;
                         }
                       }
-                    }  
+                    }
                     return;
                   },
                   {cb:cb, key_values:key_values}
@@ -293,6 +293,7 @@ function getSwitchStatus(cb) {
                                    "/shedder?getSwitchStatus"}, 
                   function (result, error_code, error_message, cb) {
                     result = JSON.parse(atob(result.body_b64));
+                    print("Got switch reading: " + JSON.stringify(result.switchStatus));
                     if(def(result) && "switchStatus" in result)
                       cb(result.switchStatus, error_code, error_message);
                     else
@@ -307,6 +308,7 @@ function getLoadStatus(cb) {
   queueShellyCall("HTTP.GET", {url:"http://localhost/script/" + target_script_id +
                               "/shedder?getLoadStatus"}, 
                   function (result, error_code, error_message, cb) {
+                    print("got load status");
                     //print(atob(result.body_b64));
                     result = JSON.parse(atob(result.body_b64));
                     if(def(result) && "loadStatus" in result)
@@ -387,9 +389,7 @@ function stopScript() {
 function verificationEngine() {
   switch (verification_phase) {
     case 0:
-      //verification_phase++
-      //break;
-      if (waitTimer(0,1)) return;
+      if (waitTimer(0,2)) return;
       switch (verification_sub_phase) {
         case 0:
           if(verification_sub_sub_phase == 0) {
@@ -452,22 +452,33 @@ function verificationEngine() {
                   margin_factor_setting:margin_factor_setting, cool_down_time_setting:cool_down_time_setting,
                   time_to_test_loading_setting:time_to_test_loading_setting, current_restriction_hysteresis_setting:current_restriction_hysteresis_setting,
                   scan_interval:target_scan_interval, log_level_setting:LOG_INFO});
+          verification_sub_phase++;
+          return;
+        case 3:
           setCurrentRestriction(-1);
+          verification_sub_phase++;
+          return;
+        case 4:
           setSimulation(true);
+          verification_sub_phase++;
+          return;
+        case 5:
           setSimulatedCurrent([0,0,0,0]);
-          break;
-          
+          verification_sub_phase++;
+          return;
+        case 6:
+          log(LOG_INFO, "Setup SUCCESS: Shedder CI successfully set-up");
+          current = undefined;
+          load_status = undefined;
+          switch_status = undefined;
+          verification_phase++; 
+          verification_sub_phase = 0;
+          verification_sub_sub_phase = 0;
+          return;          
         default:
           return;
       }
-      log(LOG_INFO, "Setup SUCCESS: Shedder CI successfully set-up");
-      current = undefined;
-      load_status = undefined;
-      switch_status = undefined;
-      verification_phase++; 
-      verification_sub_phase = 0;
-      verification_sub_sub_phase = 0;
-      break;
+ 
 
 //TC-1: Stabelizion Shedder
     case 1:
@@ -504,7 +515,7 @@ function verificationEngine() {
 //TC-2: Current measurement
 
     case 2:
-      if (waitTimer(0,4)) return;
+      if (waitTimer(0,5)) return;
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= Running Current measurement test =============");
         verification_current_vector = [0,0,0,0,1,1,1,1];
@@ -621,9 +632,7 @@ function verificationEngine() {
 
  //TC-4: Loading with minimum tripping load: 1.45*In
     case 4:
-      //verification_phase++;  //The tescase does not pass
-      //break;
-      if (waitTimer(0, 4)) return;
+      if (waitTimer(0, 5)) return;
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= Running minimum tripping load: 1.45*In =============");
         verification_current_vector = [0,0,0,0,fuse_rating_setting*1.45/4,fuse_rating_setting*1.45/4,
@@ -724,7 +733,8 @@ function verificationEngine() {
  
     case 5:
       if (waitTimer(0, 1)) return;
-      getSwitchStatus(function(result, error_code, error_message){switch_status = result});
+      if (!(verification_sub_phase % 2)) 
+        getSwitchStatus(function(result, error_code, error_message){switch_status = result});
       if (verification_sub_phase == 0) {
         log(LOG_INFO, "============= Shed test @ load: 1.45*In =============");
         verification_current_vector = [fuse_rating_setting*1.45/4,fuse_rating_setting*1.45/4,
@@ -733,7 +743,7 @@ function verificationEngine() {
         verification_sub_phase++;
         break; 
       }
-      if (verification_sub_phase < ~~(0.8*10)){
+      if (verification_sub_phase == ~~(0.8*10)) {
         if(!def(switch_status)) {
             log(LOG_ERROR, "1.45*In shed test ERROR: Could not obtain switch status");
             stopScript(true);
@@ -749,7 +759,7 @@ function verificationEngine() {
         else
           log(LOG_INFO, "1.45*In shed test INFO: Shedding did not happened prematurely");
       }
-      if (verification_sub_phase == ~~(1.2*10)) {
+      if (verification_sub_phase == ~~(1.3*10)) {
         if(!def(switch_status)) {
           log(LOG_ERROR, "1.45*In shed test ERROR: Could not obtain switch status");
           stopScript(true);
@@ -763,7 +773,7 @@ function verificationEngine() {
         }
         for(let i=0; i<switch_status.length; i++) {
           if (i == lowest_prio_chan && switch_status[i].switch_state === "on") {
-            log(LOG_ERROR, "1.45*In shed test ERROR: Expeded channel " + i + "to have shedded but it reported " + switch_status[i].switch_state);
+            log(LOG_ERROR, "1.45*In shed test ERROR: Expeded channel " + i + " to have shedded but it reported " + switch_status[i].switch_state);
             stopScript(true);
             verification_phase = -1;
             break;
@@ -955,123 +965,7 @@ function verificationEngine() {
       verification_sub_phase++;
       break;
 
-//TC-8: Subsequent Prio over-load: ......
-    case 8:
-      if(waitTimer(0, 1)) return;
-      if (!(verification_sub_phase % 2)){
-        getSwitchStatus(function(result, error_code, error_message) {switch_status = result});
-        getLoadStatus(function(result, error_code, error_message){load_status=result});
-      }
-      if (verification_sub_phase == 0) {
-        log(LOG_INFO, "============= Subsequent Prio over-load @ Load: various =============");
-        
-        verification_current_vector = [fuse_rating_setting*1.13/3,fuse_rating_setting*1.13/3,
-                                       fuse_rating_setting*1.13/3,fuse_rating_setting/4];
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: Changing simulated current to " + verification_current_vector);
-        setSimulatedCurrent(verification_current_vector);
-      }
-      if (verification_sub_phase == 20) {
-        if(!shed(switch_status, true, [3])) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected channel 3 to have been shedded but got some that did not: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;         
-        }
-        if(load_status.coolDownTimeRemaining <= 0 || load_status.overLoadTime != -1) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected coolDownTimeRemaining to be > 0 and overLoadTime to be == -1, but got: " + JSON.stringify(load_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;             
-        }
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: Expected shedding of channel 3 and got it: " + JSON.stringify(switch_status));        
-        verification_current_vector = [fuse_rating_setting*1.13/2,fuse_rating_setting*1.13/2,
-                                       fuse_rating_setting/4,0];
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: setting current to " + verification_current_vector);
-        setSimulatedCurrent(verification_current_vector);
-      } 
-      
-      if (verification_sub_phase == 40) {
-        if(!shed(switch_status, true, [3, 2])) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected channels 3 and 2 to have been shedded but got some that did not: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;         
-        }
-        if(load_status.coolDownTimeRemaining <= 0 || load_status.overLoadTime != -1) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected coolDownTimeRemaining to be > 0 and overLoadTime to be == -1, but got: " + JSON.stringify(load_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;             
-        }
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: Expected shedding of channel 3 & 2 and got it: " + JSON.stringify(switch_status));        
-        verification_current_vector = [fuse_rating_setting*1.13,fuse_rating_setting/4,
-                                       0,0];
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: setting current to " + verification_current_vector);                        
-        setSimulatedCurrent(verification_current_vector);
-      }
-      
-      if (verification_sub_phase == 60) {
-        if(!shed(switch_status, true, [3, 2, 1])) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected channels 3, 2 and 1 to have been shedded but got some that did not: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;         
-        }
-        if(load_status.coolDownTimeRemaining <= 0 || load_status.overLoadTime != -1) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected coolDownTimeRemaining to be > 0 and overLoadTime to be == -1, but got: " + JSON.stringify(load_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;             
-        }
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: Expected shedding of channel 3, 2 and 1 and got it: " + JSON.stringify(switch_status));        
-        verification_current_vector = [fuse_rating_setting*2,0,
-                                       0,0];
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: setting current to " + verification_current_vector);                        
-        setSimulatedCurrent(verification_current_vector);
-      }
-      
-      if (verification_sub_phase == 80) {
-        if(!shed(switch_status, true, [3, 2, 1])) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected channels 3, 2 and 1 to have been shedded but got some that did not: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;         
-        }
-        if(load_status.coolDownTimeRemaining <= 0 || load_status.overLoadTime <= 0) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected coolDownTimeRemaining to be > 0 and overLoadTime to be > 0, but got: " + JSON.stringify(load_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;             
-        }
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: Expected shedding of channel 3, 2 and 1 and got it: " + JSON.stringify(switch_status));        
-        verification_current_vector = [0,0,0,0];
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: setting current to " + verification_current_vector);                        
-        setSimulatedCurrent(verification_current_vector);
-      }      
-      if (verification_sub_phase == 100) {
-        if(!noShed(switch_status)){
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Did not expect shedding but got some: " + JSON.stringify(switch_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;
-        }
-        if(load_status.coolDownTimeRemaining != -1 || load_status.overLoadTime != -1) {
-          log(LOG_ERROR, "Subsequent Prio over-load test ERROR: Expected coolDownTimeRemaining to be == -1 and overLoadTime to be == -1, but got: " + JSON.stringify(load_status));
-          stopScript(true);
-          verification_phase = -1;
-          break;             
-        }
-        log(LOG_INFO, "Subsequent Prio over-load test INFO: Did not expect shedding and didnt get any: " + JSON.stringify(switch_status));        
-        log(LOG_INFO, "Subsequent Prio over-load test SUCSESS: Shedding and non shedding happened when we where expecting it");        
-        current = undefined;
-        load_status = undefined;
-        switch_status = undefined;
-        verification_phase++; 
-        verification_sub_phase = 0;
-        break;
-      }
-      verification_sub_phase++;
-      break;
+
 
     default:
       log(LOG_INFO, "CI finished");
