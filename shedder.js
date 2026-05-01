@@ -118,6 +118,7 @@ let mem_free_perc = 0;
 let mem_high_watermark = 0;
 let mem_high_watermark_perc = 0;
 let total_mem = 0;
+let call_queue_high_watermark = 0; 
 
 /*********************************************************************************************************/
 
@@ -292,7 +293,9 @@ function shedderEndPoint(req, res) {
                                  totalMem: total_mem, overRuns:overrun_cnt,
                                  measurementBusyCnt: measurement_busy_cnt,
                                  measurementFailCnt: measurement_fail_cnt,
-                                 measurementTimeoutCnt: measurement_timeout_cnt}});
+                                 measurementTimeoutCnt: measurement_timeout_cnt,
+                                 callQueueLength: shelly_call_records.length,
+                                 callQueueLengthHighWaterMark: call_queue_high_watermark}});
       metrics_updated = false;
       res.code = 200;
       break;
@@ -376,6 +379,8 @@ function log(severity, log_entry) {
 function queueShellyCall(method, method_param, cb_fun, cb_fun_params) {
   shelly_call_records.push({meth:method, meth_param: method_param, cb: cb_fun,
    cb_params: cb_fun_params});
+  if (shelly_call_records.length > call_queue_high_watermark)
+    call_queue_high_watermark = shelly_call_records.length;
   if (shelly_call_records.length === 1) {
     Shelly.emitEvent("continueExecQueuedShellyCalls", {});
   }
@@ -417,6 +422,9 @@ function shellyCallQueueEmpty() {
      return true;
 }
 
+
+/* function checkKVS()
+ * Checks if KVS has changed and if so emmits a KVS event */ 
 function checkKVS() {
   queueShellyCall("KVS.List", { match: "*"}, 
     function(result, error_code, error_message) {
@@ -604,6 +612,8 @@ function get_current(cb, params) {
   return 0;
 }
 
+/* function get_current_immediate_cb()
+ * Callback from an asynchronous current reading (if local this function is called synchrounously) */
 function get_current_immediate_cb(chanel_current, error, error_msg, params) {
   if ((def(error) && error) || !def(chanel_current)) {
 	  measurement_ongoing = false;
@@ -632,6 +642,8 @@ function get_current_immediate_cb(chanel_current, error, error_msg, params) {
   }
 }
 
+/* function getCurrentTimeout()
+ * current measurement time-out call-back */
 function getCurrentTimeout() {
 	measurement_timeout_cnt++;
 	log(LOG_ERROR, "Current measurement time-out, timeout count: " + measurement_timeout_cnt);
@@ -862,6 +874,8 @@ function updateKvs() {
   createKV("shed_chan_ptr", JSON.stringify(shed_chan_ptr), false);
 }
 
+/* function nextIdxToLoad()
+ * Provides the next "first_to_last_to_shed" index to load */ 
 function nextIdxToLoad(idx_next_to_toggle_off) {
   while (idx_next_to_toggle_off > 0) {
     idx_next_to_toggle_off--;
@@ -873,6 +887,8 @@ function nextIdxToLoad(idx_next_to_toggle_off) {
   return null;
 }
 
+/* function nextIdxToLoad()
+ * Provides the next "first_to_last_to_shed" index to shed */ 
 function nextIdxToShed(idx_next_to_toggle_off) {
   while (idx_next_to_toggle_off < first_to_last_to_shed.length - 1) {
     idx_next_to_toggle_off++;
@@ -910,6 +926,8 @@ function scanCurrent() {
   }
 }
 
+/* function processCurrentMeasurements()
+ * Asyncronous backend/call-back from the scanCurrent() scan-loop */
 function processCurrentMeasurements(current, err_code, err_msg) {
   if (def(err_code) && err_code) {
     last_overrun = true;
@@ -1092,7 +1110,10 @@ function processCurrentMeasurements(current, err_code, err_msg) {
 /*                                              main/init                                                */
 /*********************************************************************************************************/
 script_start_time = Math.floor(Date.now() / 1000)
-for (let i = 0; i < first_to_last_to_shed.length; i++) turn(i, switch_state[i] ? "on" : "off"); //FIX Only for sheddable channels
+for (let i = 0; i < first_to_last_to_shed.length; i++) {
+  if (first_to_last_to_shed[i].shed)
+    turn(i, switch_state[i] ? "on" : "off");
+}
 if (!def(idx_next_to_toggle_off=nextIdxToShed(-1))) {
   log(LOG_ERROR, "Configuration error, none of the channels are sheddable");
   return;
@@ -1101,5 +1122,4 @@ updateKvs();
 HTTPServer.registerEndpoint("shedder", shedderEndPoint);
 Shelly.addEventHandler(shellyEventCb);
 Timer.set(scan_interval * 1000, true, scanCurrent);
-
 /*********************************************************************************************************/
